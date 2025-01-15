@@ -28,6 +28,8 @@ import { SmartEditNicknameAndNoteModal } from './EditNicknameAndNoteModal';
 import { SmartNotePreviewModal } from './NotePreviewModal';
 import { SmartCallLinkEditModal } from './CallLinkEditModal';
 import { SmartCallLinkAddNameModal } from './CallLinkAddNameModal';
+import { SmartConfirmLeaveCallModal } from './ConfirmLeaveCallModal';
+import { SmartCallLinkPendingParticipantModal } from './CallLinkPendingParticipantModal';
 
 function renderCallLinkAddNameModal(): JSX.Element {
   return <SmartCallLinkAddNameModal />;
@@ -35,6 +37,14 @@ function renderCallLinkAddNameModal(): JSX.Element {
 
 function renderCallLinkEditModal(): JSX.Element {
   return <SmartCallLinkEditModal />;
+}
+
+function renderCallLinkPendingParticipantModal(): JSX.Element {
+  return <SmartCallLinkPendingParticipantModal />;
+}
+
+function renderConfirmLeaveCallModal(): JSX.Element {
+  return <SmartConfirmLeaveCallModal />;
 }
 
 function renderEditHistoryMessagesModal(): JSX.Element {
@@ -102,6 +112,8 @@ export const SmartGlobalModalContainer = memo(
       addUserToAnotherGroupModalContactId,
       callLinkAddNameModalRoomId,
       callLinkEditModalRoomId,
+      callLinkPendingParticipantContactId,
+      confirmLeaveCallModalState,
       contactModalState,
       deleteMessagesProps,
       editHistoryMessages,
@@ -162,7 +174,7 @@ export const SmartGlobalModalContainer = memo(
       }: {
         buttonVariant?: ButtonVariant;
         description?: string;
-        title?: string;
+        title?: string | null;
       }) => (
         <ErrorModal
           buttonVariant={buttonVariant}
@@ -182,6 +194,10 @@ export const SmartGlobalModalContainer = memo(
         }
         callLinkAddNameModalRoomId={callLinkAddNameModalRoomId}
         callLinkEditModalRoomId={callLinkEditModalRoomId}
+        callLinkPendingParticipantContactId={
+          callLinkPendingParticipantContactId
+        }
+        confirmLeaveCallModalState={confirmLeaveCallModalState}
         contactModalState={contactModalState}
         editHistoryMessages={editHistoryMessages}
         editNicknameAndNoteModalProps={editNicknameAndNoteModalProps}
@@ -206,6 +222,10 @@ export const SmartGlobalModalContainer = memo(
         renderAddUserToAnotherGroup={renderAddUserToAnotherGroup}
         renderCallLinkAddNameModal={renderCallLinkAddNameModal}
         renderCallLinkEditModal={renderCallLinkEditModal}
+        renderCallLinkPendingParticipantModal={
+          renderCallLinkPendingParticipantModal
+        }
+        renderConfirmLeaveCallModal={renderConfirmLeaveCallModal}
         renderContactModal={renderContactModal}
         renderEditHistoryMessagesModal={renderEditHistoryMessagesModal}
         renderEditNicknameAndNoteModal={renderEditNicknameAndNoteModal}

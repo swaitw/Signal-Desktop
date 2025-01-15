@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { isNumber } from 'lodash';
-import { v4 as generateUuid } from 'uuid';
 
 import * as Errors from '../../types/errors';
 import { strictAssert } from '../../util/assert';
 import { repeat, zipObject } from '../../util/iterables';
 import type { CallbackResultType } from '../../textsecure/Types.d';
-import type { MessageModel } from '../../models/messages';
+import { MessageModel } from '../../models/messages';
 import type { MessageReactionType } from '../../model-types.d';
 import type { ConversationModel } from '../../models/conversations';
+import { DataWriter } from '../../sql/Client';
 
 import * as reactionUtil from '../../reactions/util';
 import { isSent, SendStatus } from '../../messages/MessageSendState';
-import { __DEPRECATED$getMessageById } from '../../messages/getMessageById';
+import { getMessageById } from '../../messages/getMessageById';
 import { isIncoming } from '../../messages/helpers';
 import {
   isMe,
@@ -31,6 +31,7 @@ import type { AciString, ServiceIdString } from '../../types/ServiceId';
 import { isAciString } from '../../util/isAciString';
 import { handleMultipleSendErrors } from './handleMultipleSendErrors';
 import { incrementMessageCounter } from '../../util/incrementMessageCounter';
+import { generateMessageId } from '../../util/generateMessageId';
 
 import type {
   ConversationQueueJobBundle,
@@ -40,6 +41,9 @@ import { isConversationAccepted } from '../../util/isConversationAccepted';
 import { isConversationUnregistered } from '../../util/isConversationUnregistered';
 import type { LoggerType } from '../../types/Logging';
 import { sendToGroup } from '../../util/sendToGroup';
+import { hydrateStoryContext } from '../../util/hydrateStoryContext';
+import { postSaveUpdates } from '../../util/cleanup';
+import { send, sendSyncMessageOnly } from '../../messages/send';
 
 export async function sendReaction(
   conversation: ConversationModel,
@@ -60,7 +64,7 @@ export async function sendReaction(
   const ourConversationId =
     window.ConversationController.getOurConversationIdOrThrow();
 
-  const message = await __DEPRECATED$getMessageById(messageId);
+  const message = await getMessageById(messageId);
   if (!message) {
     log.info(
       `message ${messageId} was not found, maybe because it was deleted. Giving up on sending its reactions`
@@ -86,7 +90,10 @@ export async function sendReaction(
   if (!canReact(message.attributes, ourConversationId, findAndFormatContact)) {
     log.info(`could not react to ${messageId}. Removing this pending reaction`);
     markReactionFailed(message, pendingReaction);
-    await window.Signal.Data.saveMessage(message.attributes, { ourAci });
+    await DataWriter.saveMessage(message.attributes, {
+      ourAci,
+      postSaveUpdates,
+    });
     return;
   }
 
@@ -95,7 +102,10 @@ export async function sendReaction(
       `reacting to message ${messageId} ran out of time. Giving up on sending it`
     );
     markReactionFailed(message, pendingReaction);
-    await window.Signal.Data.saveMessage(message.attributes, { ourAci });
+    await DataWriter.saveMessage(message.attributes, {
+      ourAci,
+      postSaveUpdates,
+    });
     return;
   }
 
@@ -107,7 +117,9 @@ export async function sendReaction(
   let originalError: Error | undefined;
 
   try {
-    const messageConversation = message.getConversation();
+    const messageConversation = window.ConversationController.get(
+      message.get('conversationId')
+    );
     if (messageConversation !== conversation) {
       log.error(
         `message conversation '${messageConversation?.idForLogging()}' does not match job conversation ${conversation.idForLogging()}`
@@ -157,12 +169,11 @@ export async function sendReaction(
       targetAuthorAci,
       remove: !emoji,
     };
-    const ephemeralMessageForReactionSend = new window.Whisper.Message({
-      id: generateUuid(),
+    const ephemeralMessageForReactionSend = new MessageModel({
+      ...generateMessageId(incrementMessageCounter()),
       type: 'outgoing',
       conversationId: conversation.get('id'),
       sent_at: pendingReaction.timestamp,
-      received_at: incrementMessageCounter(),
       received_at_ms: pendingReaction.timestamp,
       timestamp: pendingReaction.timestamp,
       sendStateByConversationId: zipObject(
@@ -173,13 +184,12 @@ export async function sendReaction(
         })
       ),
     });
-    // Adds the reaction's attributes to the message cache so that we can
-    // safely `set` on it later.
-    window.MessageCache.toMessageAttributes(
-      ephemeralMessageForReactionSend.attributes
-    );
 
     ephemeralMessageForReactionSend.doNotSave = true;
+
+    // Adds the reaction's attributes to the message cache so that we can
+    // safely `set` on it later.
+    window.MessageCache.register(ephemeralMessageForReactionSend);
 
     let didFullySend: boolean;
     const successfulConversationIds = new Set<string>();
@@ -189,6 +199,7 @@ export async function sendReaction(
       const dataMessage = await messaging.getDataOrEditMessage({
         attachments: [],
         expireTimer,
+        expireTimerVersion: conversation.getExpireTimerVersion(),
         groupV2: conversation.getGroupV2Info({
           members: recipientServiceIdsWithoutMe,
         }),
@@ -198,7 +209,7 @@ export async function sendReaction(
         recipients: allRecipientServiceIds,
         timestamp: pendingReaction.timestamp,
       });
-      await ephemeralMessageForReactionSend.sendSyncMessageOnly({
+      await sendSyncMessageOnly(ephemeralMessageForReactionSend, {
         dataMessage,
         saveErrors,
         targetTimestamp: pendingReaction.timestamp,
@@ -246,6 +257,7 @@ export async function sendReaction(
           deletedForEveryoneTimestamp: undefined,
           timestamp: pendingReaction.timestamp,
           expireTimer,
+          expireTimerVersion: conversation.getExpireTimerVersion(),
           contentHint: ContentHint.RESENDABLE,
           groupId: undefined,
           profileKey,
@@ -290,7 +302,7 @@ export async function sendReaction(
         );
       }
 
-      await ephemeralMessageForReactionSend.send({
+      await send(ephemeralMessageForReactionSend, {
         promise: handleMessageSend(promise, {
           messageIds: [messageId],
           sendType: 'reaction',
@@ -332,21 +344,17 @@ export async function sendReaction(
       if (!ephemeralMessageForReactionSend.doNotSave) {
         const reactionMessage = ephemeralMessageForReactionSend;
 
-        await reactionMessage.hydrateStoryContext(message.attributes, {
+        await hydrateStoryContext(reactionMessage.id, message.attributes, {
           shouldSave: false,
         });
-        await window.Signal.Data.saveMessage(reactionMessage.attributes, {
+        await DataWriter.saveMessage(reactionMessage.attributes, {
           ourAci,
           forceSave: true,
+          postSaveUpdates,
         });
 
-        void conversation.addSingleMessage(
-          window.MessageCache.__DEPRECATED$register(
-            reactionMessage.id,
-            reactionMessage,
-            'sendReaction'
-          )
-        );
+        window.MessageCache.register(reactionMessage);
+        void conversation.addSingleMessage(reactionMessage.attributes);
       }
     }
 
@@ -374,7 +382,10 @@ export async function sendReaction(
       toThrow: originalError || thrownError,
     });
   } finally {
-    await window.Signal.Data.saveMessage(message.attributes, { ourAci });
+    await DataWriter.saveMessage(message.attributes, {
+      ourAci,
+      postSaveUpdates,
+    });
   }
 }
 
@@ -387,9 +398,9 @@ const setReactions = (
   reactions: Array<MessageReactionType>
 ): void => {
   if (reactions.length) {
-    message.set('reactions', reactions);
+    message.set({ reactions });
   } else {
-    message.set('reactions', undefined);
+    message.set({ reactions: undefined });
   }
 };
 

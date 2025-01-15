@@ -283,17 +283,17 @@ class RepeatIterable<T> implements Iterable<T> {
 }
 
 class RepeatIterator<T> implements Iterator<T> {
-  private readonly iteratorResult: IteratorResult<T>;
+  readonly #iteratorResult: IteratorResult<T>;
 
   constructor(value: Readonly<T>) {
-    this.iteratorResult = {
+    this.#iteratorResult = {
       done: false,
       value,
     };
   }
 
   next(): IteratorResult<T> {
-    return this.iteratorResult;
+    return this.#iteratorResult;
   }
 }
 
@@ -313,7 +313,10 @@ class TakeIterable<T> implements Iterable<T> {
 }
 
 class TakeIterator<T> implements Iterator<T> {
-  constructor(private readonly iterator: Iterator<T>, private amount: number) {}
+  constructor(
+    private readonly iterator: Iterator<T>,
+    private amount: number
+  ) {}
 
   next(): IteratorResult<T> {
     const nextIteration = this.iterator.next();

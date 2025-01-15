@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 
 import { Button, ButtonIconType, ButtonVariant } from '../../Button';
-import { Tooltip } from '../../Tooltip';
 import type {
   ConversationType,
   PushPanelForConversationActionType,
@@ -57,6 +56,10 @@ import { NavTab } from '../../../state/ducks/nav';
 import { ContextMenu } from '../../ContextMenu';
 import { canHaveNicknameAndNote } from '../../../util/nicknames';
 import { CallHistoryGroupPanelSection } from './CallHistoryGroupPanelSection';
+import {
+  InAnotherCallTooltip,
+  getTooltipContent,
+} from '../InAnotherCallTooltip';
 
 enum ModalState {
   AddingGroupMembers,
@@ -141,7 +144,7 @@ type ActionProps = {
       onFailure?: () => unknown;
     }
   ) => unknown;
-} & Pick<ConversationDetailsMediaListPropsType, 'showLightboxWithMedia'>;
+} & Pick<ConversationDetailsMediaListPropsType, 'showLightbox'>;
 
 export type Props = StateProps & ActionProps;
 
@@ -200,7 +203,7 @@ export function ConversationDetails({
   setMuteExpiration,
   showContactModal,
   showConversation,
-  showLightboxWithMedia,
+  showLightbox,
   theme,
   toggleAboutContactModal,
   toggleSafetyNumberModal,
@@ -424,14 +427,14 @@ export function ConversationDetails({
         {!conversation.isMe && (
           <>
             <ConversationDetailsCallButton
-              disabled={hasActiveCall}
+              hasActiveCall={hasActiveCall}
               i18n={i18n}
               onClick={() => onOutgoingVideoCallInConversation(conversation.id)}
               type="video"
             />
             {!isGroup && (
               <ConversationDetailsCallButton
-                disabled={hasActiveCall}
+                hasActiveCall={hasActiveCall}
                 i18n={i18n}
                 onClick={() =>
                   onOutgoingAudioCallInConversation(conversation.id)
@@ -539,12 +542,12 @@ export function ConversationDetails({
                     },
                   ]}
                 >
-                  {({ openMenu }) => {
+                  {({ onClick }) => {
                     return (
                       <button
                         type="button"
                         className="ConversationDetails--nickname-actions"
-                        onClick={openMenu}
+                        onClick={onClick}
                       >
                         <span className="ConversationDetails--nickname-actions-label">
                           {i18n('icu:ConversationDetails--nickname-actions')}
@@ -699,7 +702,7 @@ export function ConversationDetails({
             type: PanelType.AllMedia,
           })
         }
-        showLightboxWithMedia={showLightboxWithMedia}
+        showLightbox={showLightbox}
       />
 
       {!isGroup && !conversation.isMe && (
@@ -733,33 +736,31 @@ export function ConversationDetails({
 }
 
 function ConversationDetailsCallButton({
-  disabled,
+  hasActiveCall,
   i18n,
   onClick,
   type,
 }: Readonly<{
-  disabled: boolean;
+  hasActiveCall: boolean;
   i18n: LocalizerType;
   onClick: () => unknown;
   type: 'audio' | 'video';
 }>) {
+  const tooltipContent = hasActiveCall ? getTooltipContent(i18n) : undefined;
   const button = (
     <Button
-      disabled={disabled}
       icon={ButtonIconType[type]}
       onClick={onClick}
       variant={ButtonVariant.Details}
+      discouraged={hasActiveCall}
+      aria-label={tooltipContent}
     >
       {type === 'audio' ? i18n('icu:audio') : i18n('icu:video')}
     </Button>
   );
 
-  if (disabled) {
-    return (
-      <Tooltip content={i18n('icu:calling__in-another-call-tooltip')}>
-        {button}
-      </Tooltip>
-    );
+  if (hasActiveCall) {
+    return <InAnotherCallTooltip i18n={i18n}>{button}</InAnotherCallTooltip>;
   }
 
   return button;

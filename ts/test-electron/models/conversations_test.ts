@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
-import { v4 as generateUuid } from 'uuid';
+import { v7 as generateUuid } from 'uuid';
 
+import { DataWriter } from '../../sql/Client';
 import { SendStatus } from '../../messages/MessageSendState';
 import { IMAGE_PNG } from '../../types/MIME';
 import { generateAci, generatePni } from '../../types/ServiceId';
+import { postSaveUpdates } from '../../util/cleanup';
+import { MessageModel } from '../../models/messages';
 
 describe('Conversations', () => {
   async function resetConversationController(): Promise<void> {
@@ -38,6 +41,8 @@ describe('Conversations', () => {
       sentMessageCount: 0,
       profileSharing: true,
       version: 0,
+      expireTimerVersion: 1,
+      lastMessage: 'starting value',
     });
 
     await window.textsecure.storage.user.setCredentials({
@@ -57,7 +62,7 @@ describe('Conversations', () => {
 
     // Creating a fake message
     const now = Date.now();
-    let message = new window.Whisper.Message({
+    let message = new MessageModel({
       attachments: [],
       body: 'bananas',
       conversationId: conversation.id,
@@ -79,16 +84,13 @@ describe('Conversations', () => {
     });
 
     // Saving to db and updating the convo's last message
-    await window.Signal.Data.saveMessage(message.attributes, {
+    await DataWriter.saveMessage(message.attributes, {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
-    message = window.MessageCache.__DEPRECATED$register(
-      message.id,
-      message,
-      'test'
-    );
-    await window.Signal.Data.updateConversation(conversation.attributes);
+    message = window.MessageCache.register(message);
+    await DataWriter.updateConversation(conversation.attributes);
     await conversation.updateLastMessage();
 
     // Should be set to bananas because that's the last message sent.
@@ -131,6 +133,7 @@ describe('Conversations', () => {
       sentMessageCount: 0,
       profileSharing: true,
       version: 0,
+      expireTimerVersion: 1,
     });
 
     const resultNoImage = await conversation.getQuoteAttachment(

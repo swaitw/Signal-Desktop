@@ -3,23 +3,48 @@
 
 import { isFunction, isNumber } from 'lodash';
 import pMap from 'p-map';
+import PQueue from 'p-queue';
 
 import { CURRENT_SCHEMA_VERSION } from '../types/Message2';
 import { isNotNil } from '../util/isNotNil';
+import { MINUTE } from '../util/durations';
 import type { MessageAttributesType } from '../model-types.d';
 import type { AciString } from '../types/ServiceId';
 import * as Errors from '../types/errors';
+import { DataReader, DataWriter } from '../sql/Client';
+import { postSaveUpdates } from '../util/cleanup';
 
 const MAX_CONCURRENCY = 5;
 
+// Don't migrate batches concurrently
+const migrationQueue = new PQueue({
+  concurrency: 1,
+  timeout: MINUTE * 30,
+});
+
+type BatchResultType = Readonly<{
+  done: boolean;
+  numProcessed: number;
+  numSucceeded?: number;
+  numFailedSave?: number;
+  numFailedUpgrade?: number;
+  fetchDuration?: number;
+  upgradeDuration?: number;
+  saveDuration?: number;
+  totalDuration?: number;
+}>;
+
 /**
  * Ensures that messages in database are at the right schema.
+ *
+ * @internal
  */
-export async function migrateMessageData({
+export async function _migrateMessageData({
   numMessagesPerBatch,
   upgradeMessageSchema,
   getMessagesNeedingUpgrade,
-  saveMessages,
+  saveMessagesIndividually,
+  incrementMessagesMigrationAttempts,
   maxVersion = CURRENT_SCHEMA_VERSION,
 }: Readonly<{
   numMessagesPerBatch: number;
@@ -31,25 +56,15 @@ export async function migrateMessageData({
     limit: number,
     options: { maxVersion: number }
   ) => Promise<Array<MessageAttributesType>>;
-  saveMessages: (
+  saveMessagesIndividually: (
     data: ReadonlyArray<MessageAttributesType>,
-    options: { ourAci: AciString }
-  ) => Promise<unknown>;
+    options: { ourAci: AciString; postSaveUpdates: () => Promise<void> }
+  ) => Promise<{ failedIndices: Array<number> }>;
+  incrementMessagesMigrationAttempts: (
+    messageIds: ReadonlyArray<string>
+  ) => Promise<void>;
   maxVersion?: number;
-}>): Promise<
-  | {
-      done: true;
-      numProcessed: 0;
-    }
-  | {
-      done: boolean;
-      numProcessed: number;
-      fetchDuration: number;
-      upgradeDuration: number;
-      saveDuration: number;
-      totalDuration: number;
-    }
-> {
+}>): Promise<BatchResultType> {
   if (!isNumber(numMessagesPerBatch)) {
     throw new TypeError("'numMessagesPerBatch' is required");
   }
@@ -80,7 +95,7 @@ export async function migrateMessageData({
   const fetchDuration = Date.now() - fetchStartTime;
 
   const upgradeStartTime = Date.now();
-  const failedMessages = new Array<MessageAttributesType>();
+  const failedToUpgradeMessageIds = new Array<string>();
   const upgradedMessages = (
     await pMap(
       messagesRequiringSchemaUpgrade,
@@ -92,7 +107,7 @@ export async function migrateMessageData({
             'migrateMessageData.upgradeMessageSchema error:',
             Errors.toLogFormat(error)
           );
-          failedMessages.push(message);
+          failedToUpgradeMessageIds.push(message.id);
           return undefined;
         }
       },
@@ -104,29 +119,76 @@ export async function migrateMessageData({
   const saveStartTime = Date.now();
 
   const ourAci = window.textsecure.storage.user.getCheckedAci();
-  await saveMessages(
-    [
-      ...upgradedMessages,
-
-      // Increment migration attempts
-      ...failedMessages.map(message => ({
-        ...message,
-        schemaMigrationAttempts: (message.schemaMigrationAttempts ?? 0) + 1,
-      })),
-    ],
-    { ourAci }
+  const { failedIndices: failedToSaveIndices } = await saveMessagesIndividually(
+    upgradedMessages,
+    {
+      ourAci,
+      postSaveUpdates,
+    }
   );
+
+  const failedToSaveMessageIds = failedToSaveIndices.map(
+    idx => upgradedMessages[idx].id
+  );
+
+  if (failedToUpgradeMessageIds.length || failedToSaveMessageIds.length) {
+    await incrementMessagesMigrationAttempts([
+      ...failedToUpgradeMessageIds,
+      ...failedToSaveMessageIds,
+    ]);
+  }
   const saveDuration = Date.now() - saveStartTime;
 
   const totalDuration = Date.now() - startTime;
   const numProcessed = messagesRequiringSchemaUpgrade.length;
+  const numFailedUpgrade = failedToUpgradeMessageIds.length;
+  const numFailedSave = failedToSaveIndices.length;
+  const numSucceeded = numProcessed - numFailedSave - numFailedUpgrade;
   const done = numProcessed < numMessagesPerBatch;
   return {
     done,
     numProcessed,
+    numSucceeded,
+    numFailedUpgrade,
+    numFailedSave,
     fetchDuration,
     upgradeDuration,
     saveDuration,
     totalDuration,
   };
+}
+
+export async function migrateBatchOfMessages({
+  numMessagesPerBatch,
+}: {
+  numMessagesPerBatch: number;
+}): ReturnType<typeof _migrateMessageData> {
+  return migrationQueue.add(() =>
+    _migrateMessageData({
+      numMessagesPerBatch,
+      upgradeMessageSchema: window.Signal.Migrations.upgradeMessageSchema,
+      getMessagesNeedingUpgrade: DataReader.getMessagesNeedingUpgrade,
+      saveMessagesIndividually: DataWriter.saveMessagesIndividually,
+      incrementMessagesMigrationAttempts:
+        DataWriter.incrementMessagesMigrationAttempts,
+    })
+  );
+}
+
+export async function migrateAllMessages(): Promise<void> {
+  const { log } = window.SignalContext;
+
+  let batch: BatchResultType | undefined;
+  let total = 0;
+  while (!batch?.done) {
+    // eslint-disable-next-line no-await-in-loop
+    batch = await migrateBatchOfMessages({
+      numMessagesPerBatch: 1000,
+    });
+    total += batch.numProcessed;
+    log.info(`migrateAllMessages: Migrated batch of ${batch.numProcessed}`);
+  }
+  log.info(
+    `migrateAllMessages: message migration complete; ${total} messages migrated`
+  );
 }

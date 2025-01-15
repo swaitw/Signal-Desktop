@@ -46,9 +46,9 @@ function createMediaItem(
       attachments: [],
       conversationId: '1234',
       id: 'image-msg',
-      received_at: 0,
-      received_at_ms: Date.now(),
-      sent_at: Date.now(),
+      receivedAt: 0,
+      receivedAtMs: Date.now(),
+      sentAt: Date.now(),
     },
     objectURL: '',
     ...overrideProps,
@@ -96,9 +96,9 @@ export function Multimedia(): JSX.Element {
           attachments: [],
           conversationId: '1234',
           id: 'image-msg',
-          received_at: 1,
-          received_at_ms: Date.now(),
-          sent_at: Date.now(),
+          receivedAt: 1,
+          receivedAtMs: Date.now(),
+          sentAt: Date.now(),
         },
         objectURL: '/fixtures/tina-rolf-269345-unsplash.jpg',
       },
@@ -114,9 +114,9 @@ export function Multimedia(): JSX.Element {
           attachments: [],
           conversationId: '1234',
           id: 'video-msg',
-          received_at: 2,
-          received_at_ms: Date.now(),
-          sent_at: Date.now(),
+          receivedAt: 2,
+          receivedAtMs: Date.now(),
+          sentAt: Date.now(),
         },
         objectURL: '/fixtures/pixabay-Soap-Bubble-7141.mp4',
       },
@@ -153,9 +153,9 @@ export function MissingMedia(): JSX.Element {
           attachments: [],
           conversationId: '1234',
           id: 'image-msg',
-          received_at: 3,
-          received_at_ms: Date.now(),
-          sent_at: Date.now(),
+          receivedAt: 3,
+          receivedAtMs: Date.now(),
+          sentAt: Date.now(),
         },
         objectURL: undefined,
       },
@@ -344,6 +344,33 @@ export function ViewOnceVideo(): JSX.Element {
         ],
       })}
       isViewOnce
+    />
+  );
+}
+
+export function IncrementalVideo(): JSX.Element {
+  const item = createMediaItem({
+    contentType: VIDEO_MP4,
+    objectURL: '/fixtures/pixabay-Soap-Bubble-7141.mp4',
+  });
+
+  return (
+    <Lightbox
+      {...createProps({
+        media: [
+          {
+            ...item,
+            attachment: {
+              ...item.attachment,
+              incrementalMac: 'something',
+              chunkSize: 42,
+              pending: true,
+              totalDownloaded: 50000,
+              size: 100000,
+            },
+          },
+        ],
+      })}
     />
   );
 }

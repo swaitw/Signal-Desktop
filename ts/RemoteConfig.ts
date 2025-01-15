@@ -15,28 +15,31 @@ import { HashType } from './types/Crypto';
 import { getCountryCode } from './types/PhoneNumber';
 
 export type ConfigKeyType =
-  | 'desktop.calling.adhoc'
-  | 'desktop.calling.adhoc.create'
-  | 'desktop.calling.raiseHand'
+  | 'desktop.calling.ringrtcAdmFull'
+  | 'desktop.calling.ringrtcAdmInternal'
+  | 'desktop.calling.ringrtcAdmPreStable'
   | 'desktop.clientExpiration'
   | 'desktop.backup.credentialFetch'
-  | 'desktop.deleteSync.send'
-  | 'desktop.deleteSync.receive'
   | 'desktop.internalUser'
   | 'desktop.mediaQuality.levels'
   | 'desktop.messageCleanup'
   | 'desktop.retryRespondMaxAge'
   | 'desktop.senderKey.retry'
   | 'desktop.senderKeyMaxAge'
+  | 'desktop.experimentalTransport.enableAuth'
   | 'desktop.experimentalTransportEnabled.alpha'
   | 'desktop.experimentalTransportEnabled.beta'
   | 'desktop.experimentalTransportEnabled.prod'
   | 'desktop.cdsiViaLibsignal'
+  | 'desktop.releaseNotes'
+  | 'desktop.releaseNotes.beta'
+  | 'desktop.releaseNotes.dev'
   | 'global.attachments.maxBytes'
   | 'global.attachments.maxReceiveBytes'
   | 'global.calling.maxGroupCallRingSize'
   | 'global.groupsv2.groupSizeHardLimit'
   | 'global.groupsv2.maxGroupSize'
+  | 'global.messageQueueTimeInSeconds'
   | 'global.nicknames.max'
   | 'global.nicknames.min'
   | 'global.textAttachmentLimitBytes';
@@ -58,8 +61,12 @@ type ConfigListenersMapType = {
 let config: ConfigMapType = {};
 const listeners: ConfigListenersMapType = {};
 
-export async function initRemoteConfig(server: WebAPIType): Promise<void> {
+export function restoreRemoteConfigFromStorage(): void {
   config = window.storage.get('remoteConfig') || {};
+}
+
+export async function initRemoteConfig(server: WebAPIType): Promise<void> {
+  restoreRemoteConfigFromStorage();
   await maybeRefreshRemoteConfig(server);
 }
 

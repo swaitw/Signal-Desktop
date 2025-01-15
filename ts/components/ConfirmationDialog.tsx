@@ -39,6 +39,7 @@ export type OwnProps = Readonly<{
   hasXButton?: boolean;
   i18n: LocalizerType;
   moduleClassName?: string;
+  noEscapeClose?: boolean;
   noMouseClose?: boolean;
   noDefaultCancelButton?: boolean;
   onCancel?: () => unknown;
@@ -80,6 +81,7 @@ export const ConfirmationDialog = React.memo(function ConfirmationDialogInner({
   i18n,
   isSpinning,
   moduleClassName,
+  noEscapeClose,
   noMouseClose,
   noDefaultCancelButton,
   onCancel,
@@ -129,7 +131,7 @@ export const ConfirmationDialog = React.memo(function ConfirmationDialogInner({
         <Button
           key={
             typeof action.text === 'string'
-              ? action.id ?? action.text
+              ? (action.id ?? action.text)
               : action.id
           }
           disabled={action.disabled || isSpinning}
@@ -163,6 +165,7 @@ export const ConfirmationDialog = React.memo(function ConfirmationDialogInner({
     <ModalHost
       modalName={modalName}
       noMouseClose={noMouseClose}
+      noEscapeClose={noEscapeClose}
       onClose={close}
       onEscape={cancelAndClose}
       onTopOfEverything={onTopOfEverything}

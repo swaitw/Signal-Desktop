@@ -3,7 +3,6 @@ node_modules_bkp
 .sass-cache
 coverage/*
 build/curve25519_compiled.js
-build/dns-fallback.json
 build/compact-locales
 stylesheets/*.css.map
 /dist
@@ -30,6 +29,7 @@ stylesheets/*.css
 !stylesheets/webrtc_internals.css
 /storybook-static/
 preload.bundle.*
+preload.wrapper.js
 bundles/
 ts/sql/mainWorker.bundle.js.LICENSE.txt
 build/ICUMessageParams.d.ts

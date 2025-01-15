@@ -14,6 +14,7 @@ import { TargetedMessageSource } from '../ducks/conversationsEnums';
 import { useConversationsActions } from '../ducks/conversations';
 import { useToastActions } from '../ducks/toast';
 import { strictAssert } from '../../util/assert';
+import { isStagingServer } from '../../util/isStagingServer';
 import { ToastType } from '../../types/Toast';
 import { getNavTabsCollapsed } from '../selectors/items';
 import { useItemsActions } from '../ducks/items';
@@ -73,7 +74,13 @@ export const SmartChatsTab = memo(function SmartChatsTab() {
     ) {
       scrollToMessage(selectedConversationId, targetedMessageId);
     }
-  }, [onConversationOpened, selectedConversationId, scrollToMessage, targetedMessageId, targetedMessageSource]);
+  }, [
+    onConversationOpened,
+    selectedConversationId,
+    scrollToMessage,
+    targetedMessageId,
+    targetedMessageSource,
+  ]);
 
   const prevConversationId = usePrevious(
     selectedConversationId,
@@ -140,6 +147,7 @@ export const SmartChatsTab = memo(function SmartChatsTab() {
     <ChatsTab
       otherTabsUnreadStats={otherTabsUnreadStats}
       i18n={i18n}
+      isStaging={isStagingServer()}
       hasFailedStorySends={hasFailedStorySends}
       hasPendingUpdate={hasPendingUpdate}
       navTabsCollapsed={navTabsCollapsed}

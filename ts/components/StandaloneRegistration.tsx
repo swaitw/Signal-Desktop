@@ -3,7 +3,7 @@
 
 import type { ChangeEvent } from 'react';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Plugin } from 'intl-tel-input';
+import type { Iti } from 'intl-tel-input';
 import intlTelInput from 'intl-tel-input';
 
 import { strictAssert } from '../util/assert';
@@ -21,7 +21,7 @@ function PhoneInput({
   onNumberChange: (number?: string) => void;
 }): JSX.Element {
   const [isValid, setIsValid] = useState(false);
-  const pluginRef = useRef<Plugin | undefined>();
+  const pluginRef = useRef<Iti | undefined>();
   const elemRef = useRef<HTMLInputElement | null>(null);
 
   const onRef = useCallback(
@@ -389,7 +389,7 @@ export function ProfileNameStage({
           dir="auto"
           pattern="\s*[0-9]{3}-?[0-9]{3}\s*"
           title="Enter your first name"
-          placeholder="First name"
+          placeholder="First Name (Required)"
           autoComplete="off"
           value={firstName}
           onChange={onChangeFirstName}
@@ -400,7 +400,7 @@ export function ProfileNameStage({
           dir="auto"
           pattern="\s*[0-9]{3}-?[0-9]{3}\s*"
           title="Enter your last name"
-          placeholder="First name"
+          placeholder="Last Name (Optional)"
           autoComplete="off"
           value={lastName}
           onChange={onChangeLastName}

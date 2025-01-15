@@ -15,6 +15,7 @@ import {
   jsonToObject,
 } from '../util';
 import type { Query, EmptyQuery } from '../util';
+import type { WritableDB } from '../Interface';
 
 import updateToSchemaVersion41 from './41-uuid-keys';
 import updateToSchemaVersion42 from './42-stale-reactions';
@@ -87,10 +88,25 @@ import { updateToSchemaVersion1080 } from './1080-nondisappearing-addressable';
 import { updateToSchemaVersion1090 } from './1090-message-delete-indexes';
 import { updateToSchemaVersion1100 } from './1100-optimize-mark-call-history-read-in-conversation';
 import { updateToSchemaVersion1110 } from './1110-sticker-local-key';
+import { updateToSchemaVersion1120 } from './1120-messages-foreign-keys-indexes';
+import { updateToSchemaVersion1130 } from './1130-isStory-index';
+import { updateToSchemaVersion1140 } from './1140-call-links-deleted-column';
+import { updateToSchemaVersion1150 } from './1150-expire-timer-version';
+import { updateToSchemaVersion1160 } from './1160-optimize-calls-unread-count';
+import { updateToSchemaVersion1170 } from './1170-update-call-history-unread-index';
+import { updateToSchemaVersion1180 } from './1180-add-attachment-download-source';
+import { updateToSchemaVersion1190 } from './1190-call-links-storage';
+import { updateToSchemaVersion1200 } from './1200-attachment-download-source-index';
+import { updateToSchemaVersion1210 } from './1210-call-history-started-id';
+import { updateToSchemaVersion1220 } from './1220-blob-sessions';
+import { updateToSchemaVersion1230 } from './1230-call-links-admin-key-index';
+import { updateToSchemaVersion1240 } from './1240-defunct-call-links-table';
+import { updateToSchemaVersion1250 } from './1250-defunct-call-links-storage';
 import {
-  updateToSchemaVersion1120,
+  updateToSchemaVersion1260,
   version as MAX_VERSION,
-} from './1120-messages-foreign-keys-indexes';
+} from './1260-sync-tasks-rowid';
+import { DataWriter } from '../Server';
 
 function updateToSchemaVersion1(
   currentVersion: number,
@@ -2043,9 +2059,25 @@ export const SCHEMA_VERSIONS = [
   updateToSchemaVersion1070,
   updateToSchemaVersion1080,
   updateToSchemaVersion1090,
+
   updateToSchemaVersion1100,
   updateToSchemaVersion1110,
   updateToSchemaVersion1120,
+  updateToSchemaVersion1130,
+  updateToSchemaVersion1140,
+  updateToSchemaVersion1150,
+  updateToSchemaVersion1160,
+  updateToSchemaVersion1170,
+  updateToSchemaVersion1180,
+  updateToSchemaVersion1190,
+
+  updateToSchemaVersion1200,
+  updateToSchemaVersion1210,
+  updateToSchemaVersion1220,
+  updateToSchemaVersion1230,
+  updateToSchemaVersion1240,
+  updateToSchemaVersion1250,
+  updateToSchemaVersion1260,
 ];
 
 export class DBVersionFromFutureError extends Error {
@@ -2075,7 +2107,7 @@ export function enableFTS5SecureDelete(db: Database, logger: LoggerType): void {
   }
 }
 
-export function updateSchema(db: Database, logger: LoggerType): void {
+export function updateSchema(db: WritableDB, logger: LoggerType): void {
   const sqliteVersion = getSQLiteVersion(db);
   const sqlcipherVersion = getSQLCipherVersion(db);
   const startingVersion = getUserVersion(db);
@@ -2103,6 +2135,7 @@ export function updateSchema(db: Database, logger: LoggerType): void {
     runSchemaUpdate(startingVersion, db, logger);
   }
 
+  DataWriter.ensureMessageInsertTriggersAreEnabled(db);
   enableFTS5SecureDelete(db, logger);
 
   if (startingVersion !== MAX_VERSION) {

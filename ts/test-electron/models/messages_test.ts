@@ -9,10 +9,11 @@ import type { AttachmentType } from '../../types/Attachment';
 import type { CallbackResultType } from '../../textsecure/Types.d';
 import type { ConversationModel } from '../../models/conversations';
 import type { MessageAttributesType } from '../../model-types.d';
-import type { MessageModel } from '../../models/messages';
+import { MessageModel } from '../../models/messages';
 import type { RawBodyRange } from '../../types/BodyRange';
 import type { StorageAccessType } from '../../types/Storage.d';
 import type { WebAPIType } from '../../textsecure/WebAPI';
+import { DataWriter } from '../../sql/Client';
 import MessageSender from '../../textsecure/SendMessage';
 import enMessages from '../../../_locales/en/messages.json';
 import { SendStatus } from '../../messages/MessageSendState';
@@ -29,6 +30,9 @@ import {
   TEXT_ATTACHMENT,
   VIDEO_MP4,
 } from '../../types/MIME';
+import { getNotificationDataForMessage } from '../../util/getNotificationDataForMessage';
+import { getNotificationTextForMessage } from '../../util/getNotificationTextForMessage';
+import { send } from '../../messages/send';
 
 describe('Message', () => {
   const STORAGE_KEYS_TO_RESTORE: Array<keyof StorageAccessType> = [
@@ -53,17 +57,22 @@ describe('Message', () => {
   const ourServiceId = generateAci();
 
   function createMessage(attrs: Partial<MessageAttributesType>): MessageModel {
-    return new window.Whisper.Message({
-      id: generateUuid(),
-      ...attrs,
-      received_at: Date.now(),
-    } as MessageAttributesType);
+    const id = generateUuid();
+    return window.MessageCache.register(
+      new MessageModel({
+        id,
+        ...attrs,
+        sent_at: Date.now(),
+        received_at: Date.now(),
+      } as MessageAttributesType)
+    );
   }
 
   function createMessageAndGetNotificationData(attrs: {
     [key: string]: unknown;
   }) {
-    return createMessage(attrs).getNotificationData();
+    const message = createMessage(attrs);
+    return getNotificationDataForMessage(message.attributes);
   }
 
   before(async () => {
@@ -78,7 +87,7 @@ describe('Message', () => {
   });
 
   after(async () => {
-    await window.Signal.Data.removeAll();
+    await DataWriter.removeAll();
     await window.storage.fetch();
 
     await Promise.all(
@@ -183,7 +192,7 @@ describe('Message', () => {
         editMessage: undefined,
       });
 
-      await message.send({
+      await send(message, {
         promise,
         targetTimestamp: message.get('timestamp'),
       });
@@ -206,7 +215,7 @@ describe('Message', () => {
       const message = createMessage({ type: 'outgoing', source });
 
       const promise = Promise.reject(new Error('foo bar'));
-      await message.send({
+      await send(message, {
         promise,
         targetTimestamp: message.get('timestamp'),
       });
@@ -223,7 +232,7 @@ describe('Message', () => {
         errors: [new Error('baz qux')],
       };
       const promise = Promise.reject(result);
-      await message.send({
+      await send(message, {
         promise,
         targetTimestamp: message.get('timestamp'),
       });
@@ -674,18 +683,20 @@ describe('Message', () => {
 
   describe('getNotificationText', () => {
     it("returns a notification's text", async () => {
+      const message = createMessage({
+        conversationId: (
+          await window.ConversationController.getOrCreateAndWait(
+            generateUuid(),
+            'private'
+          )
+        ).id,
+        type: 'incoming',
+        source,
+        body: 'hello world',
+      });
+
       assert.strictEqual(
-        createMessage({
-          conversationId: (
-            await window.ConversationController.getOrCreateAndWait(
-              generateUuid(),
-              'private'
-            )
-          ).id,
-          type: 'incoming',
-          source,
-          body: 'hello world',
-        }).getNotificationText(),
+        getNotificationTextForMessage(message.attributes),
         'hello world'
       );
     });
@@ -697,24 +708,24 @@ describe('Message', () => {
           return false;
         },
       });
-
+      const message = createMessage({
+        conversationId: (
+          await window.ConversationController.getOrCreateAndWait(
+            generateUuid(),
+            'private'
+          )
+        ).id,
+        type: 'incoming',
+        source,
+        attachments: [
+          {
+            contentType: IMAGE_PNG,
+            size: 0,
+          },
+        ],
+      });
       assert.strictEqual(
-        createMessage({
-          conversationId: (
-            await window.ConversationController.getOrCreateAndWait(
-              generateUuid(),
-              'private'
-            )
-          ).id,
-          type: 'incoming',
-          source,
-          attachments: [
-            {
-              contentType: IMAGE_PNG,
-              size: 0,
-            },
-          ],
-        }).getNotificationText(),
+        getNotificationTextForMessage(message.attributes),
         '📷 Photo'
       );
     });
@@ -727,23 +738,25 @@ describe('Message', () => {
         },
       });
 
+      const message = createMessage({
+        conversationId: (
+          await window.ConversationController.getOrCreateAndWait(
+            generateUuid(),
+            'private'
+          )
+        ).id,
+        type: 'incoming',
+        source,
+        attachments: [
+          {
+            contentType: IMAGE_PNG,
+            size: 0,
+          },
+        ],
+      });
+
       assert.strictEqual(
-        createMessage({
-          conversationId: (
-            await window.ConversationController.getOrCreateAndWait(
-              generateUuid(),
-              'private'
-            )
-          ).id,
-          type: 'incoming',
-          source,
-          attachments: [
-            {
-              contentType: IMAGE_PNG,
-              size: 0,
-            },
-          ],
-        }).getNotificationText(),
+        getNotificationTextForMessage(message.attributes),
         'Photo'
       );
     });

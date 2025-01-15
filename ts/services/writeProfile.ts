@@ -1,7 +1,7 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import dataInterface from '../sql/Client';
+import { DataWriter } from '../sql/Client';
 import type { ConversationType } from '../state/ducks/conversations';
 import * as Errors from '../types/errors';
 import * as log from '../logging/log';
@@ -34,7 +34,11 @@ export async function writeProfile(
   if (!model) {
     return;
   }
-  await getProfile(model.getServiceId(), model.get('e164'));
+  await getProfile({
+    serviceId: model.getServiceId() ?? null,
+    e164: model.get('e164') ?? null,
+    groupId: null,
+  });
 
   // Encrypt the profile data, update profile, and if needed upload the avatar
   const {
@@ -134,7 +138,7 @@ export async function writeProfile(
     ...maybeProfileAvatarUpdate,
   });
 
-  dataInterface.updateConversation(model.attributes);
+  await DataWriter.updateConversation(model.attributes);
   model.captureChange('writeProfile');
 
   try {

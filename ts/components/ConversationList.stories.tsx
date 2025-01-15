@@ -68,6 +68,7 @@ function Wrapper({
       shouldRecomputeRowHeights={false}
       i18n={i18n}
       blockConversation={action('blockConversation')}
+      onPreloadConversation={action('onPreloadConversation')}
       onSelectConversation={action('onSelectConversation')}
       onOutgoingAudioCallInConversation={action(
         'onOutgoingAudioCallInConversation'
@@ -76,6 +77,7 @@ function Wrapper({
         'onOutgoingVideoCallInConversation'
       )}
       onClickArchiveButton={action('onClickArchiveButton')}
+      onClickClearFilterButton={action('onClickClearFilterButton')}
       onClickContactCheckbox={action('onClickContactCheckbox')}
       removeConversation={action('removeConversation')}
       renderMessageSearchResult={(id: string) => (

@@ -26,7 +26,7 @@ const createAttachment = (
   contentType: stringToMIMEType(props.contentType ?? ''),
   fileName: props.fileName ?? '',
   screenshotPath: props.pending === false ? props.screenshotPath : undefined,
-  url: props.pending === false ? props.url ?? '' : '',
+  url: props.pending === false ? (props.url ?? '') : '',
   size: 3433,
 });
 
@@ -67,6 +67,7 @@ const useProps = (overrideProps: Partial<PropsType> = {}): PropsType => ({
       onPickEmoji={action('onPickEmoji')}
       onSetSkinTone={action('onSetSkinTone')}
       onTextTooLong={action('onTextTooLong')}
+      ourConversationId="me"
       platform="darwin"
       skinTone={0}
     />

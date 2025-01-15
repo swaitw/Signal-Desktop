@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { pick } from 'lodash';
-import type { MessageAttributesType } from '../model-types.d';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
 import type { StoryDataType } from '../state/ducks/stories';
 import * as durations from '../util/durations';
 import * as log from '../logging/log';
-import dataInterface from '../sql/Client';
+import { DataReader, DataWriter } from '../sql/Client';
 import type { GetAllStoriesResultType } from '../sql/Interface';
 import {
   getAttachmentsForMessage,
@@ -18,20 +18,22 @@ import { strictAssert } from '../util/assert';
 import { dropNull } from '../util/dropNull';
 import { DurationInSeconds } from '../util/durations';
 import { SIGNAL_ACI } from '../types/SignalConversation';
+import { postSaveUpdates } from '../util/cleanup';
 
 let storyData: GetAllStoriesResultType | undefined;
 
 export async function loadStories(): Promise<void> {
-  storyData = await dataInterface.getAllStories({});
+  storyData = await DataReader.getAllStories({});
 
   await repairUnexpiredStories();
 }
 
 export function getStoryDataFromMessageAttributes(
-  message: MessageAttributesType & {
-    hasReplies?: boolean;
-    hasRepliesFromSelf?: boolean;
-  }
+  message: ReadonlyMessageAttributesType &
+    Readonly<{
+      hasReplies?: boolean;
+      hasRepliesFromSelf?: boolean;
+    }>
 ): StoryDataType | undefined {
   const { attachments, deletedForEveryone } = message;
   const unresolvedAttachment = attachments ? attachments[0] : undefined;
@@ -171,8 +173,9 @@ async function repairUnexpiredStories(): Promise<void> {
 
   await Promise.all(
     storiesWithExpiry.map(messageAttributes => {
-      return window.Signal.Data.saveMessage(messageAttributes, {
+      return DataWriter.saveMessage(messageAttributes, {
         ourAci: window.textsecure.storage.user.getCheckedAci(),
+        postSaveUpdates,
       });
     })
   );

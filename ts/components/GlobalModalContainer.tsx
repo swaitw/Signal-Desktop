@@ -20,6 +20,7 @@ import { ButtonVariant } from './Button';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { SignalConnectionsModal } from './SignalConnectionsModal';
 import { WhatsNewModal } from './WhatsNewModal';
+import type { StartCallData } from './ConfirmLeaveCallModal';
 
 // NOTE: All types should be required for this component so that the smart
 // component gives you type errors when adding/removing props.
@@ -35,6 +36,12 @@ export type PropsType = {
   // CallLinkEditModal
   callLinkEditModalRoomId: string | null;
   renderCallLinkEditModal: () => JSX.Element;
+  // CallLinkPendingParticipantModal
+  callLinkPendingParticipantContactId: string | undefined;
+  renderCallLinkPendingParticipantModal: () => JSX.Element;
+  // ConfirmLeaveCallModal
+  confirmLeaveCallModalState: StartCallData | null;
+  renderConfirmLeaveCallModal: () => JSX.Element;
   // ContactModal
   contactModalState: ContactModalStateType | undefined;
   renderContactModal: () => JSX.Element;
@@ -46,12 +53,16 @@ export type PropsType = {
   renderEditNicknameAndNoteModal: () => JSX.Element;
   // ErrorModal
   errorModalProps:
-    | { buttonVariant?: ButtonVariant; description?: string; title?: string }
+    | {
+        buttonVariant?: ButtonVariant;
+        description?: string;
+        title?: string | null;
+      }
     | undefined;
   renderErrorModal: (opts: {
     buttonVariant?: ButtonVariant;
     description?: string;
-    title?: string;
+    title?: string | null;
   }) => JSX.Element;
   // DeleteMessageModal
   deleteMessagesProps: DeleteMessagesPropsType | undefined;
@@ -114,6 +125,12 @@ export function GlobalModalContainer({
   // CallLinkEditModal
   callLinkEditModalRoomId,
   renderCallLinkEditModal,
+  // CallLinkPendingParticipantModal
+  callLinkPendingParticipantContactId,
+  renderCallLinkPendingParticipantModal,
+  // ConfirmLeaveCallModal
+  confirmLeaveCallModalState,
+  renderConfirmLeaveCallModal,
   // ContactModal
   contactModalState,
   renderContactModal,
@@ -196,6 +213,10 @@ export function GlobalModalContainer({
 
   // The Rest
 
+  if (confirmLeaveCallModalState) {
+    return renderConfirmLeaveCallModal();
+  }
+
   if (addUserToAnotherGroupModalContactId) {
     return renderAddUserToAnotherGroup();
   }
@@ -255,6 +276,12 @@ export function GlobalModalContainer({
 
   if (contactModalState) {
     return renderContactModal();
+  }
+
+  // This needs to be after the about contact modal because the pending participant modal
+  // opens the about contact modal
+  if (callLinkPendingParticipantContactId) {
+    return renderCallLinkPendingParticipantModal();
   }
 
   if (isStoriesSettingsVisible) {

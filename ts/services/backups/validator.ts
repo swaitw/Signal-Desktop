@@ -1,67 +1,25 @@
 // Copyright 2024 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type FileHandle, open } from 'node:fs/promises';
 import * as libsignal from '@signalapp/libsignal-client/dist/MessageBackup';
-import { InputStream } from '@signalapp/libsignal-client/dist/io';
 
 import { strictAssert } from '../../util/assert';
 import { toAciObject } from '../../util/ServiceId';
 import { isTestOrMockEnvironment } from '../../environment';
-
-class FileStream extends InputStream {
-  private file: FileHandle | undefined;
-  private position = 0;
-  private buffer = Buffer.alloc(16 * 1024);
-  private initPromise: Promise<unknown> | undefined;
-
-  constructor(private readonly filePath: string) {
-    super();
-  }
-
-  public async close(): Promise<void> {
-    await this.initPromise;
-    await this.file?.close();
-  }
-
-  async read(amount: number): Promise<Buffer> {
-    await this.initPromise;
-
-    if (!this.file) {
-      const filePromise = open(this.filePath);
-      this.initPromise = filePromise;
-      this.file = await filePromise;
-    }
-
-    if (this.buffer.length < amount) {
-      this.buffer = Buffer.alloc(amount);
-    }
-    const { bytesRead } = await this.file.read(
-      this.buffer,
-      0,
-      amount,
-      this.position
-    );
-    this.position += bytesRead;
-    return this.buffer.slice(0, bytesRead);
-  }
-
-  async skip(amount: number): Promise<void> {
-    this.position += amount;
-  }
-}
+import { FileStream } from './util/FileStream';
 
 export async function validateBackup(
   filePath: string,
   fileSize: number
 ): Promise<void> {
-  const masterKeyBase64 = window.storage.get('masterKey');
-  strictAssert(masterKeyBase64, 'Master key not available');
-
-  const masterKey = Buffer.from(masterKeyBase64, 'base64');
+  const accountEntropy = window.storage.get('accountEntropyPool');
+  strictAssert(accountEntropy, 'Account Entropy Pool not available');
 
   const aci = toAciObject(window.storage.user.getCheckedAci());
-  const backupKey = new libsignal.MessageBackupKey(masterKey, aci);
+  const backupKey = new libsignal.MessageBackupKey({
+    accountEntropy,
+    aci,
+  });
 
   const streams = new Array<FileStream>();
 

@@ -2,34 +2,33 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
-import type { Database } from '@signalapp/better-sqlite3';
-import SQL from '@signalapp/better-sqlite3';
 import { v4 as generateGuid } from 'uuid';
 
 import { jsonToObject, sql } from '../../sql/util';
-import { CallMode } from '../../types/Calling';
-import type { CallHistoryDetails } from '../../types/CallDisposition';
 import {
+  CallMode,
   CallDirection,
   CallType,
   DirectCallStatus,
   GroupCallStatus,
   callHistoryDetailsSchema,
 } from '../../types/CallDisposition';
+import type { CallHistoryDetails } from '../../types/CallDisposition';
 import type {
   CallHistoryDetailsFromDiskType,
   MessageWithCallHistoryDetails,
 } from '../../sql/migrations/89-call-history';
 import { getCallIdFromEra } from '../../util/callDisposition';
 import { isValidUuid } from '../../util/isValidUuid';
-import { updateToVersion } from './helpers';
-import type { MessageType } from '../../sql/Interface';
+import { createDB, updateToVersion } from './helpers';
+import type { WritableDB, MessageType } from '../../sql/Interface';
+import { parsePartial } from '../../util/schemas';
 
 describe('SQL/updateToSchemaVersion89', () => {
-  let db: Database;
+  let db: WritableDB;
 
   beforeEach(() => {
-    db = new SQL(':memory:');
+    db = createDB();
     updateToVersion(db, 88);
   });
 
@@ -154,8 +153,14 @@ describe('SQL/updateToSchemaVersion89', () => {
     return db
       .prepare(selectHistoryQuery)
       .all()
-      .map(row => {
-        return callHistoryDetailsSchema.parse(row);
+      .map((row: object) => {
+        return parsePartial(callHistoryDetailsSchema, {
+          ...row,
+
+          // Not present at the time of migration, but required by zod
+          startedById: null,
+          endedTimestamp: null,
+        });
       });
   }
 
@@ -453,6 +458,10 @@ describe('SQL/updateToSchemaVersion89', () => {
         direction: CallDirection.Incoming,
         status: DirectCallStatus.Accepted,
         timestamp: Date.now(),
+
+        // Not present at the time of migration
+        startedById: null,
+        endedTimestamp: null,
       });
       insertCallHistory({
         callId: 'abc',
@@ -463,6 +472,10 @@ describe('SQL/updateToSchemaVersion89', () => {
         direction: CallDirection.Incoming,
         status: GroupCallStatus.Accepted,
         timestamp: Date.now(),
+
+        // Not present at the time of migration
+        startedById: null,
+        endedTimestamp: null,
       });
 
       updateToVersion(db, 89);
@@ -489,6 +502,10 @@ describe('SQL/updateToSchemaVersion89', () => {
         direction: CallDirection.Incoming,
         status: DirectCallStatus.Pending,
         timestamp: Date.now() - 1000,
+
+        // Not present at the time of migration
+        startedById: null,
+        endedTimestamp: null,
       });
 
       createCallHistoryMessage({

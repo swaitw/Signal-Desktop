@@ -5,16 +5,13 @@ import { assert } from 'chai';
 import { v4 as generateUuid } from 'uuid';
 
 import { generateAci } from '../../types/ServiceId';
-import dataInterface from '../../sql/Client';
+import { DataReader, DataWriter } from '../../sql/Client';
 
 import type { MessageAttributesType } from '../../model-types';
+import { postSaveUpdates } from '../../util/cleanup';
 
-const {
-  saveMessages,
-  _getAllMessages,
-  _removeAllMessages,
-  getMessagesBetween,
-} = dataInterface;
+const { _getAllMessages, getMessagesBetween } = DataReader;
+const { saveMessages, _removeAllMessages } = DataWriter;
 
 describe('sql/getMessagesBetween', () => {
   beforeEach(async () => {
@@ -49,6 +46,7 @@ describe('sql/getMessagesBetween', () => {
     await saveMessages([message1, message2, message3, message4, message5], {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
 
     assert.lengthOf(await _getAllMessages(), 5);
@@ -97,6 +95,7 @@ describe('sql/getMessagesBetween', () => {
     await saveMessages([message1, message2, message3, message5], {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
 
     assert.lengthOf(await _getAllMessages(), 4);

@@ -4,8 +4,7 @@
 import { v4 as generateUuid } from 'uuid';
 
 import type { AttachmentType } from '../types/Attachment';
-import type { MessageAttributesType } from '../model-types.d';
-import type { MessageModel } from '../models/messages';
+import { MessageModel } from '../models/messages';
 import * as log from '../logging/log';
 import { IMAGE_JPEG } from '../types/MIME';
 import { ReadStatus } from '../messages/MessageReadStatus';
@@ -65,11 +64,11 @@ export async function downloadOnboardingStory(): Promise<void> {
   log.info('downloadOnboardingStory: downloaded stories:', imageBuffers.length);
 
   const attachments: Array<AttachmentType> = await Promise.all(
-    imageBuffers.map(data => {
+    imageBuffers.map(async data => {
+      const local = await window.Signal.Migrations.writeNewAttachmentData(data);
       const attachment: AttachmentType = {
         contentType: IMAGE_JPEG,
-        data,
-        size: data.byteLength,
+        ...local,
       };
 
       return window.Signal.Migrations.processNewAttachment(attachment);
@@ -84,7 +83,7 @@ export async function downloadOnboardingStory(): Promise<void> {
     (attachment, index) => {
       const timestamp = Date.now() + index;
 
-      const partialMessage: MessageAttributesType = {
+      const message = new MessageModel({
         attachments: [attachment],
         canReplyToStory: false,
         conversationId: signalConversation.id,
@@ -99,19 +98,14 @@ export async function downloadOnboardingStory(): Promise<void> {
         sourceServiceId: signalConversation.getServiceId(),
         timestamp,
         type: 'story',
-      };
-      return new window.Whisper.Message(partialMessage);
+      });
+      return window.MessageCache.register(message);
     }
   );
 
   await Promise.all(
     storyMessages.map(message => saveNewMessageBatcher.add(message.attributes))
   );
-
-  // Sync to redux
-  storyMessages.forEach(message => {
-    message.trigger('change');
-  });
 
   await window.storage.put(
     'existingOnboardingStoryMessageIds',

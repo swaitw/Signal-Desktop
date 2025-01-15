@@ -62,6 +62,8 @@ const defaultConversations: Array<ConversationType> = [
 ];
 
 const defaultSearchProps = {
+  filterByUnread: false,
+  isSearchingGlobally: true,
   searchConversation: undefined,
   searchDisabled: false,
   searchTerm: 'hello',
@@ -79,6 +81,13 @@ const defaultGroups: Array<GroupListItemConversationType> = [
   }),
 ];
 
+const backupMediaDownloadProgress = {
+  downloadedBytes: 1024,
+  totalBytes: 4098,
+  downloadBannerDismissed: false,
+  isIdle: false,
+  isPaused: false,
+};
 const defaultArchivedConversations: Array<ConversationType> = [
   getDefaultConversation({
     id: 'michelle-archive-convo',
@@ -102,6 +111,7 @@ const pinnedConversations: Array<ConversationType> = [
 
 const defaultModeSpecificProps = {
   ...defaultSearchProps,
+  filterByUnread: false,
   mode: LeftPaneMode.Inbox as const,
   pinnedConversations,
   conversations: defaultConversations,
@@ -136,15 +146,30 @@ const useProps = (overrideProps: OverridePropsType = {}): PropsType => {
       unreadMentionsCount: 0,
       markedUnread: false,
     },
+    backupMediaDownloadProgress: {
+      downloadBannerDismissed: false,
+      isIdle: false,
+      isPaused: false,
+      totalBytes: 0,
+      downloadedBytes: 0,
+    },
     clearConversationSearch: action('clearConversationSearch'),
     clearGroupCreationError: action('clearGroupCreationError'),
-    clearSearch: action('clearSearch'),
+    clearSearchQuery: action('clearSearchQuery'),
     closeMaximumGroupSizeModal: action('closeMaximumGroupSizeModal'),
     closeRecommendedGroupSizeModal: action('closeRecommendedGroupSizeModal'),
     composeDeleteAvatarFromDisk: action('composeDeleteAvatarFromDisk'),
     composeReplaceAvatar: action('composeReplaceAvatar'),
     composeSaveAvatarToDisk: action('composeSaveAvatarToDisk'),
     createGroup: action('createGroup'),
+    dismissBackupMediaDownloadBanner: action(
+      'dismissBackupMediaDownloadBanner'
+    ),
+    pauseBackupMediaDownload: action('pauseBackupMediaDownload'),
+    resumeBackupMediaDownload: action('resumeBackupMediaDownload'),
+    cancelBackupMediaDownload: action('cancelBackupMediaDownload'),
+    endConversationSearch: action('endConversationSearch'),
+    endSearch: action('endSearch'),
     getPreferredBadge: () => undefined,
     hasFailedStorySends: false,
     hasPendingUpdate: false,
@@ -169,6 +194,7 @@ const useProps = (overrideProps: OverridePropsType = {}): PropsType => {
       makeFakeLookupConversationWithoutServiceId(),
     showUserNotFoundModal: action('showUserNotFoundModal'),
     setIsFetchingUUID,
+    preloadConversation: action('preloadConversation'),
     showConversation: action('showConversation'),
     blockConversation: action('blockConversation'),
     onOutgoingAudioCallInConversation: action(
@@ -292,6 +318,7 @@ const useProps = (overrideProps: OverridePropsType = {}): PropsType => {
     ),
     toggleNavTabsCollapse: action('toggleNavTabsCollapse'),
     toggleProfileEditor: action('toggleProfileEditor'),
+    updateFilterByUnread: action('updateFilterByUnread'),
     updateSearchTerm: action('updateSearchTerm'),
 
     ...overrideProps,
@@ -317,6 +344,45 @@ export function InboxNoConversations(): JSX.Element {
           mode: LeftPaneMode.Inbox,
           pinnedConversations: [],
           conversations: [],
+          archivedConversations: [],
+          isAboutToSearch: false,
+        },
+      })}
+    />
+  );
+}
+
+export function InboxBackupMediaDownload(): JSX.Element {
+  return (
+    <LeftPaneInContainer
+      {...useProps({
+        backupMediaDownloadProgress,
+      })}
+    />
+  );
+}
+
+export function InboxBackupMediaDownloadWithDialogs(): JSX.Element {
+  return (
+    <LeftPaneInContainer
+      {...useProps({
+        backupMediaDownloadProgress,
+        unsupportedOSDialogType: 'error',
+      })}
+    />
+  );
+}
+export function InboxBackupMediaDownloadWithDialogsAndUnpinnedConversations(): JSX.Element {
+  return (
+    <LeftPaneInContainer
+      {...useProps({
+        backupMediaDownloadProgress,
+        unsupportedOSDialogType: 'error',
+        modeSpecificProps: {
+          ...defaultSearchProps,
+          mode: LeftPaneMode.Inbox,
+          pinnedConversations: [],
+          conversations: defaultConversations,
           archivedConversations: [],
           isAboutToSearch: false,
         },
@@ -463,6 +529,24 @@ export function InboxPinnedAndNonPinnedConversations(): JSX.Element {
   );
 }
 
+export function InboxPinnedAndNonPinnedConversationsWithBackupDownload(): JSX.Element {
+  return (
+    <LeftPaneInContainer
+      {...useProps({
+        modeSpecificProps: {
+          ...defaultSearchProps,
+          mode: LeftPaneMode.Inbox,
+          pinnedConversations,
+          conversations: defaultConversations,
+          archivedConversations: [],
+          isAboutToSearch: false,
+        },
+        backupMediaDownloadProgress,
+      })}
+    />
+  );
+}
+
 export function InboxPinnedNonPinnedAndArchivedConversations(): JSX.Element {
   return <LeftPaneInContainer {...useProps()} />;
 }
@@ -512,6 +596,43 @@ export function SearchNoResultsWhenSearchingInAConversation(): JSX.Element {
           contactResults: emptySearchResultsGroup,
           messageResults: emptySearchResultsGroup,
           searchConversationName: 'Bing Bong',
+          primarySendsSms: false,
+        },
+      })}
+    />
+  );
+}
+
+export function SearchNoResultsUnreadFilterAndQuery(): JSX.Element {
+  return (
+    <LeftPaneInContainer
+      {...useProps({
+        modeSpecificProps: {
+          ...defaultSearchProps,
+          filterByUnread: true,
+          mode: LeftPaneMode.Search,
+          conversationResults: emptySearchResultsGroup,
+          contactResults: emptySearchResultsGroup,
+          messageResults: emptySearchResultsGroup,
+          primarySendsSms: false,
+        },
+      })}
+    />
+  );
+}
+
+export function SearchNoResultsUnreadFilterWithoutQuery(): JSX.Element {
+  return (
+    <LeftPaneInContainer
+      {...useProps({
+        modeSpecificProps: {
+          ...defaultSearchProps,
+          searchTerm: '',
+          filterByUnread: true,
+          mode: LeftPaneMode.Search,
+          conversationResults: emptySearchResultsGroup,
+          contactResults: emptySearchResultsGroup,
+          messageResults: emptySearchResultsGroup,
           primarySendsSms: false,
         },
       })}
@@ -602,6 +723,30 @@ export function SearchAllResults(): JSX.Element {
   );
 }
 
+export function SearchAllResultsUnreadFilter(): JSX.Element {
+  return (
+    <LeftPaneInContainer
+      {...useProps({
+        modeSpecificProps: {
+          ...defaultSearchProps,
+          filterByUnread: true,
+          mode: LeftPaneMode.Search,
+          conversationResults: {
+            isLoading: false,
+            results: defaultConversations,
+          },
+          contactResults: { isLoading: false, results: [] },
+          messageResults: {
+            isLoading: false,
+            results: [],
+          },
+          primarySendsSms: false,
+        },
+      })}
+    />
+  );
+}
+
 export function ArchiveNoArchivedConversations(): JSX.Element {
   return (
     <LeftPaneInContainer
@@ -609,6 +754,7 @@ export function ArchiveNoArchivedConversations(): JSX.Element {
         modeSpecificProps: {
           mode: LeftPaneMode.Archive,
           archivedConversations: [],
+          isSearchingGlobally: false,
           searchConversation: undefined,
           searchTerm: '',
           startSearchCounter: 0,
@@ -625,6 +771,7 @@ export function ArchiveArchivedConversations(): JSX.Element {
         modeSpecificProps: {
           mode: LeftPaneMode.Archive,
           archivedConversations: defaultConversations,
+          isSearchingGlobally: false,
           searchConversation: undefined,
           searchTerm: '',
           startSearchCounter: 0,
@@ -641,6 +788,7 @@ export function ArchiveSearchingAConversation(): JSX.Element {
         modeSpecificProps: {
           mode: LeftPaneMode.Archive,
           archivedConversations: defaultConversations,
+          isSearchingGlobally: false,
           searchConversation: undefined,
           searchTerm: '',
           startSearchCounter: 0,

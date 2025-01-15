@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { AciString } from '../types/ServiceId';
-import type { MessageModel } from '../models/messages';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
+import { DataReader } from '../sql/Client';
 import * as Errors from '../types/errors';
 import * as log from '../logging/log';
 import { getMessageIdForLogging } from '../util/idForLogging';
+import { markViewOnceMessageViewed } from '../services/MessageUpdater';
+import { MessageModel } from '../models/messages';
 
 export type ViewOnceOpenSyncAttributesType = {
   removeFromMessageReceiverCache: () => unknown;
@@ -22,18 +25,18 @@ function remove(sync: ViewOnceOpenSyncAttributesType): void {
 }
 
 export function forMessage(
-  message: MessageModel
+  message: ReadonlyMessageAttributesType
 ): ViewOnceOpenSyncAttributesType | null {
   const logId = `ViewOnceOpenSyncs.forMessage(${getMessageIdForLogging(
-    message.attributes
+    message
   )})`;
 
   const viewOnceSyncValues = Array.from(viewOnceSyncs.values());
 
   const syncBySourceServiceId = viewOnceSyncValues.find(item => {
     return (
-      item.sourceAci === message.get('sourceServiceId') &&
-      item.timestamp === message.get('sent_at')
+      item.sourceAci === message.sourceServiceId &&
+      item.timestamp === message.sent_at
     );
   });
 
@@ -44,10 +47,7 @@ export function forMessage(
   }
 
   const syncBySource = viewOnceSyncValues.find(item => {
-    return (
-      item.source === message.get('source') &&
-      item.timestamp === message.get('sent_at')
-    );
+    return item.source === message.source && item.timestamp === message.sent_at;
   });
   if (syncBySource) {
     log.info(`${logId}: Found early view once open sync for message`);
@@ -66,9 +66,7 @@ export async function onSync(
   const logId = `ViewOnceOpenSyncs.onSync(timestamp=${sync.timestamp})`;
 
   try {
-    const messages = await window.Signal.Data.getMessagesBySentAt(
-      sync.timestamp
-    );
+    const messages = await DataReader.getMessagesBySentAt(sync.timestamp);
 
     const found = messages.find(item => {
       const itemSourceAci = item.sourceServiceId;
@@ -97,12 +95,8 @@ export async function onSync(
       return;
     }
 
-    const message = window.MessageCache.__DEPRECATED$register(
-      found.id,
-      found,
-      'ViewOnceOpenSyncs.onSync'
-    );
-    await message.markViewOnceMessageViewed({ fromSync: true });
+    const message = window.MessageCache.register(new MessageModel(found));
+    await markViewOnceMessageViewed(message, { fromSync: true });
 
     viewOnceSyncs.delete(sync.timestamp);
     sync.removeFromMessageReceiverCache();

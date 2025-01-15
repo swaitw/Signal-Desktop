@@ -4,7 +4,7 @@
 import { assert } from 'chai';
 import { v4 as generateUuid } from 'uuid';
 
-import dataInterface from '../../sql/Client';
+import { DataReader, DataWriter } from '../../sql/Client';
 import { generateAci } from '../../types/ServiceId';
 
 import type { ReactionType } from '../../types/Reactions';
@@ -12,18 +12,18 @@ import { ReactionReadStatus } from '../../types/Reactions';
 import { DurationInSeconds } from '../../util/durations';
 import type { MessageAttributesType } from '../../model-types.d';
 import { ReadStatus } from '../../messages/MessageReadStatus';
+import { postSaveUpdates } from '../../util/cleanup';
 
+const { _getAllReactions, _getAllMessages, getTotalUnreadForConversation } =
+  DataReader;
 const {
   _removeAllMessages,
   _removeAllReactions,
-  _getAllReactions,
-  _getAllMessages,
   addReaction,
   saveMessages,
-  getTotalUnreadForConversation,
   getUnreadByConversationAndMarkRead,
   getUnreadReactionsAndMarkRead,
-} = dataInterface;
+} = DataWriter;
 
 const UNREAD_REACTION = { readStatus: ReactionReadStatus.Unread };
 
@@ -127,6 +127,7 @@ describe('sql/markRead', () => {
       {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       }
     );
 
@@ -291,6 +292,7 @@ describe('sql/markRead', () => {
       {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       }
     );
 
@@ -393,6 +395,7 @@ describe('sql/markRead', () => {
     await saveMessages([message1, message2, message3, message4, message5], {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
 
     assert.strictEqual(
@@ -519,6 +522,7 @@ describe('sql/markRead', () => {
       {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       }
     );
     assert.lengthOf(await _getAllMessages(), pad.length + 5);
@@ -674,6 +678,7 @@ describe('sql/markRead', () => {
     await saveMessages([message1, message2, message3, message4, message5], {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
     assert.lengthOf(await _getAllMessages(), 5);
 
@@ -824,6 +829,7 @@ describe('sql/markRead', () => {
     await saveMessages([message1, message2, message3, message4], {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
 
     assert.lengthOf(await _getAllMessages(), 4);

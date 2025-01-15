@@ -23,7 +23,7 @@ import type { ServiceIdString } from '../../types/ServiceId';
 import type { StoryDistributionIdString } from '../../types/StoryDistributionId';
 import * as Errors from '../../types/errors';
 import type { StoryMessageRecipientsType } from '../../types/Stories';
-import dataInterface from '../../sql/Client';
+import { DataReader, DataWriter } from '../../sql/Client';
 import { SignalService as Proto } from '../../protobuf';
 import { getMessagesById } from '../../messages/getMessagesById';
 import {
@@ -39,6 +39,13 @@ import { distributionListToSendTarget } from '../../util/distributionListToSendT
 import { uploadAttachment } from '../../util/uploadAttachment';
 import { SendMessageChallengeError } from '../../textsecure/Errors';
 import type { OutgoingTextAttachmentType } from '../../textsecure/SendMessage';
+import {
+  markFailed,
+  notifyStorySendFailed,
+  saveErrorsOnMessage,
+} from '../../test-node/util/messageFailures';
+import { postSaveUpdates } from '../../util/cleanup';
+import { send } from '../../messages/send';
 
 export async function sendStory(
   conversation: ConversationModel,
@@ -77,7 +84,9 @@ export async function sendStory(
     const distributionId = message.get('storyDistributionListId');
     const logId = `stories.sendStory(${timestamp}/${distributionId})`;
 
-    const messageConversation = message.getConversation();
+    const messageConversation = window.ConversationController.get(
+      message.get('conversationId')
+    );
     if (messageConversation !== conversation) {
       log.error(
         `${logId}: Message conversation ` +
@@ -96,7 +105,7 @@ export async function sendStory(
       return false;
     }
 
-    if (message.isErased() || message.get('deletedForEveryone')) {
+    if (message.get('isErased') || message.get('deletedForEveryone')) {
       log.info(`${logId}: message was erased. Giving up on sending it`);
       return false;
     }
@@ -252,7 +261,7 @@ export async function sendStory(
 
       const distributionList = isGroupV2(conversation.attributes)
         ? undefined
-        : await dataInterface.getStoryDistributionWithMembers(receiverId);
+        : await DataReader.getStoryDistributionWithMembers(receiverId);
 
       let messageSendErrors: Array<Error> = [];
 
@@ -365,7 +374,7 @@ export async function sendStory(
         // eslint-disable-next-line no-param-reassign
         message.doNotSendSyncMessage = true;
 
-        const messageSendPromise = message.send({
+        const messageSendPromise = send(message, {
           promise: handleMessageSend(innerPromise, {
             messageIds: [message.id],
             sendType: 'story',
@@ -533,16 +542,17 @@ export async function sendStory(
       }, {} as SendStateByConversationId);
 
       if (hasFailedSends) {
-        message.notifyStorySendFailed();
+        notifyStorySendFailed(message);
       }
 
       if (isEqual(oldSendStateByConversationId, newSendStateByConversationId)) {
         return;
       }
 
-      message.set('sendStateByConversationId', newSendStateByConversationId);
-      return window.Signal.Data.saveMessage(message.attributes, {
+      message.set({ sendStateByConversationId: newSendStateByConversationId });
+      return DataWriter.saveMessage(message.attributes, {
         ourAci: window.textsecure.storage.user.getCheckedAci(),
+        postSaveUpdates,
       });
     })
   );
@@ -686,10 +696,9 @@ async function markMessageFailed(
   message: MessageModel,
   errors: Array<Error>
 ): Promise<void> {
-  message.markFailed();
-  void message.saveErrors(errors, { skipSave: true });
-  await window.Signal.Data.saveMessage(message.attributes, {
-    ourAci: window.textsecure.storage.user.getCheckedAci(),
+  markFailed(message);
+  await saveErrorsOnMessage(message, errors, {
+    skipSave: false,
   });
 }
 

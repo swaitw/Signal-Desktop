@@ -1,38 +1,32 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { ReadonlyDeep } from 'type-fest';
 import type { AudioDevice, Reaction as CallReaction } from '@signalapp/ringrtc';
 import type { ConversationType } from '../state/ducks/conversations';
 import type { AciString, ServiceIdString } from './ServiceId';
 import type { CallLinkConversationType } from './CallLink';
+import type { CallMode } from './CallDisposition';
 
 export const MAX_CALLING_REACTIONS = 5;
 export const CALLING_REACTIONS_LIFETIME = 4000;
-
-// These are strings (1) for the database (2) for Storybook.
-export enum CallMode {
-  Direct = 'Direct',
-  Group = 'Group',
-  Adhoc = 'Adhoc',
-}
-
 // Speaker and Presentation mode have the same UI, but Presentation is only set
 // automatically when someone starts to present, and will revert to the previous view mode
 // once presentation is complete
 export enum CallViewMode {
   Paginated = 'Paginated',
-  Overflow = 'Overflow',
+  Sidebar = 'Sidebar',
   Speaker = 'Speaker',
   Presentation = 'Presentation',
 }
 
-export type PresentableSource = {
+export type PresentableSource = ReadonlyDeep<{
   appIcon?: string;
   id: string;
   name: string;
   isScreen: boolean;
   thumbnail: string;
-};
+}>;
 
 export type PresentedSource = {
   id: string;
@@ -61,7 +55,7 @@ export type ActiveCallBaseType = {
   outgoingRing: boolean;
   pip: boolean;
   presentingSource?: PresentedSource;
-  presentingSourcesAvailable?: Array<PresentableSource>;
+  presentingSourcesAvailable?: ReadonlyArray<PresentableSource>;
   settingsDialogOpen: boolean;
   showNeedsScreenRecordingPermissionsWarning?: boolean;
   showParticipantsList: boolean;
@@ -82,7 +76,7 @@ export type ActiveDirectCallType = ActiveCallBaseType & {
       //   GroupCallRemoteParticipantType below (which is based on
       //   ConversationType).
       serviceId?: ServiceIdString;
-    }
+    },
   ];
 };
 
@@ -101,6 +95,7 @@ export type ActiveGroupCallType = ActiveCallBaseType & {
   raisedHands: Set<number>;
   remoteParticipants: Array<GroupCallRemoteParticipantType>;
   remoteAudioLevels: Map<number, number>;
+  suggestLowerHand: boolean;
 };
 
 export type ActiveCallType = ActiveDirectCallType | ActiveGroupCallType;

@@ -15,8 +15,9 @@ import {
 } from 'lodash';
 import type { PhoneNumber } from 'google-libphonenumber';
 
-import { clipboard } from 'electron';
+import { clipboard, ipcRenderer } from 'electron';
 import type { ReadonlyDeep } from 'type-fest';
+import { DataReader, DataWriter } from '../../sql/Client';
 import type { AttachmentType } from '../../types/Attachment';
 import type { StateType as RootStateType } from '../reducer';
 import * as groups from '../../groups';
@@ -63,12 +64,13 @@ import type {
   DraftEditMessageType,
   LastMessageStatus,
   MessageAttributesType,
+  ReadonlyMessageAttributesType,
 } from '../../model-types.d';
 import type {
   DraftBodyRanges,
   HydratedBodyRangesType,
 } from '../../types/BodyRange';
-import { CallMode } from '../../types/Calling';
+import { CallMode } from '../../types/CallDisposition';
 import type { MediaItemType } from '../../types/MediaItem';
 import type { StoryDistributionIdString } from '../../types/StoryDistributionId';
 import { normalizeStoryDistributionId } from '../../types/StoryDistributionId';
@@ -124,11 +126,12 @@ import {
   isDirectConversation,
   isGroup,
   isGroupV2,
+  isMe,
 } from '../../util/whatTypeOfConversation';
 import { missingCaseError } from '../../util/missingCaseError';
 import { viewSyncJobQueue } from '../../jobs/viewSyncJobQueue';
 import { ReadStatus } from '../../messages/MessageReadStatus';
-import { isIncoming, processBodyRanges } from '../selectors/message';
+import { isIncoming, isStory, processBodyRanges } from '../selectors/message';
 import { getActiveCall, getActiveCallState } from '../selectors/calling';
 import { sendDeleteForEveryoneMessage } from '../../util/sendDeleteForEveryoneMessage';
 import type { ShowToastActionType } from './toast';
@@ -147,7 +150,7 @@ import {
   buildUpdateAttributesChange,
   initiateMigrationToGroupV2 as doInitiateMigrationToGroupV2,
 } from '../../groups';
-import { __DEPRECATED$getMessageById } from '../../messages/getMessageById';
+import { getMessageById } from '../../messages/getMessageById';
 import type { PanelRenderType, PanelRequestType } from '../../types/Panels';
 import type { ConversationQueueJobData } from '../../jobs/conversationJobQueue';
 import { isOlderThan } from '../../util/timestamp';
@@ -182,10 +185,16 @@ import type { ChangeNavTabActionType } from './nav';
 import { CHANGE_NAV_TAB, NavTab, actions as navActions } from './nav';
 import { sortByMessageOrder } from '../../types/ForwardDraft';
 import { getAddedByForOurPendingInvitation } from '../../util/getAddedByForOurPendingInvitation';
-import { getConversationIdForLogging } from '../../util/idForLogging';
+import {
+  getConversationIdForLogging,
+  getMessageIdForLogging,
+} from '../../util/idForLogging';
 import { singleProtoJobQueue } from '../../jobs/singleProtoJobQueue';
 import MessageSender from '../../textsecure/SendMessage';
-import { AttachmentDownloadUrgency } from '../../jobs/AttachmentDownloadManager';
+import {
+  AttachmentDownloadManager,
+  AttachmentDownloadUrgency,
+} from '../../jobs/AttachmentDownloadManager';
 import type {
   DeleteForMeSyncEventData,
   MessageToDelete,
@@ -195,10 +204,22 @@ import {
   getMessageToDelete,
 } from '../../util/deleteForMe';
 import { MAX_MESSAGE_COUNT } from '../../util/deleteForMe.types';
-import { isEnabled } from '../../RemoteConfig';
 import { markCallHistoryReadInConversation } from './callHistory';
 import type { CapabilitiesType } from '../../textsecure/WebAPI';
-
+import { actions as searchActions } from './search';
+import type { SearchActionType } from './search';
+import { getNotificationTextForMessage } from '../../util/getNotificationTextForMessage';
+import { doubleCheckMissingQuoteReference as doDoubleCheckMissingQuoteReference } from '../../util/doubleCheckMissingQuoteReference';
+import { queueAttachmentDownloadsForMessage } from '../../util/queueAttachmentDownloads';
+import { markAttachmentAsCorrupted as doMarkAttachmentAsCorrupted } from '../../messageModifiers/AttachmentDownloads';
+import {
+  isSent,
+  SendActionType,
+  sendStateReducer,
+} from '../../messages/MessageSendState';
+import { markFailed } from '../../test-node/util/messageFailures';
+import { cleanupMessages, postSaveUpdates } from '../../util/cleanup';
+import { MessageModel } from '../../models/messages';
 // State
 
 export type DBConversationType = ReadonlyDeep<{
@@ -209,25 +230,29 @@ export type DBConversationType = ReadonlyDeep<{
 }>;
 
 export const InteractionModes = ['mouse', 'keyboard'] as const;
-export type InteractionModeType = ReadonlyDeep<typeof InteractionModes[number]>;
-
-export type MessageTimestamps = ReadonlyDeep<
-  Pick<MessageAttributesType, 'sent_at' | 'received_at'>
+export type InteractionModeType = ReadonlyDeep<
+  (typeof InteractionModes)[number]
 >;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-export type MessageType = MessageAttributesType & {
-  interactionType?: InteractionModeType;
-};
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-export type MessageWithUIFieldsType = MessageAttributesType & {
-  displayLimit?: number;
-  isSpoilerExpanded?: Record<number, boolean>;
-};
+export type MessageTimestamps = ReadonlyDeep<
+  Pick<ReadonlyMessageAttributesType, 'sent_at' | 'received_at'>
+>;
+
+export type MessageType = ReadonlyDeep<
+  ReadonlyMessageAttributesType & {
+    interactionType?: InteractionModeType;
+  }
+>;
+export type MessageWithUIFieldsType = ReadonlyDeep<
+  ReadonlyMessageAttributesType & {
+    displayLimit?: number;
+    isSpoilerExpanded?: Record<number, boolean>;
+  }
+>;
 
 export const ConversationTypes = ['direct', 'group'] as const;
 export type ConversationTypeType = ReadonlyDeep<
-  typeof ConversationTypes[number]
+  (typeof ConversationTypes)[number]
 >;
 
 export type LastMessageType = ReadonlyDeep<
@@ -311,6 +336,7 @@ export type ConversationType = ReadonlyDeep<
     phoneNumber?: string;
     membersCount?: number;
     hasMessages?: boolean;
+    messagesDeleted?: boolean;
     accessControlAddFromInviteLink?: number;
     accessControlAttributes?: number;
     accessControlMembers?: number;
@@ -418,10 +444,9 @@ type MessageMetricsType = ReadonlyDeep<{
   totalUnseen: number;
 }>;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-export type MessageLookupType = {
+export type MessageLookupType = ReadonlyDeep<{
   [key: string]: MessageWithUIFieldsType;
-};
+}>;
 export type ConversationMessageType = ReadonlyDeep<{
   isNearBottom?: boolean;
   messageChangeCounter: number;
@@ -430,6 +455,12 @@ export type ConversationMessageType = ReadonlyDeep<{
   metrics: MessageMetricsType;
   scrollToMessageId?: string;
   scrollToMessageCounter: number;
+}>;
+export type ConversationPreloadDataType = ReadonlyDeep<{
+  conversationId: string;
+  messages: ReadonlyArray<ReadonlyMessageAttributesType>;
+  metrics: MessageMetricsType;
+  unboundedFetch: boolean;
 }>;
 
 export type MessagesByConversationType = ReadonlyDeep<{
@@ -508,8 +539,7 @@ type ComposerStateType = ReadonlyDeep<
       ))
 >;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep -- FIXME
-export type ConversationsStateType = Readonly<{
+export type ConversationsStateType = ReadonlyDeep<{
   preJoinConversation?: PreJoinConversationType;
   invitedServiceIdsForNewlyCreatedGroup?: ReadonlyArray<ServiceIdString>;
   conversationLookup: ConversationLookupType;
@@ -528,7 +558,7 @@ export type ConversationsStateType = Readonly<{
     stack: ReadonlyArray<PanelRenderType>;
     watermark: number;
   };
-  targetedMessageForDetails?: MessageAttributesType;
+  targetedMessageForDetails?: ReadonlyMessageAttributesType;
 
   lastSelectedMessage: MessageTimestamps | undefined;
   selectedMessageIds: ReadonlyArray<string> | undefined;
@@ -547,6 +577,8 @@ export type ConversationsStateType = Readonly<{
   // Note: it's very important that both of these locations are always kept up to date
   messagesLookup: MessageLookupType;
   messagesByConversation: MessagesByConversationType;
+
+  preloadData?: ConversationPreloadDataType;
 }>;
 
 // Helpers
@@ -600,6 +632,7 @@ const PUSH_PANEL = 'conversations/PUSH_PANEL';
 const POP_PANEL = 'conversations/POP_PANEL';
 const PANEL_ANIMATION_DONE = 'conversations/PANEL_ANIMATION_DONE';
 const PANEL_ANIMATION_STARTED = 'conversations/PANEL_ANIMATION_STARTED';
+export const MARK_READ = 'conversations/MARK_READ';
 export const MESSAGE_CHANGED = 'MESSAGE_CHANGED';
 export const MESSAGE_DELETED = 'MESSAGE_DELETED';
 export const MESSAGE_EXPIRED = 'conversations/MESSAGE_EXPIRED';
@@ -698,18 +731,10 @@ type SetPreJoinConversationActionType = ReadonlyDeep<{
   };
 }>;
 
-type ConversationAddedActionType = ReadonlyDeep<{
-  type: 'CONVERSATION_ADDED';
+export type ConversationsUpdatedActionType = ReadonlyDeep<{
+  type: 'CONVERSATIONS_UPDATED';
   payload: {
-    id: string;
-    data: ConversationType;
-  };
-}>;
-export type ConversationChangedActionType = ReadonlyDeep<{
-  type: 'CONVERSATION_CHANGED';
-  payload: {
-    id: string;
-    data: ConversationType;
+    data: Array<ConversationType>;
   };
 }>;
 export type ConversationRemovedActionType = ReadonlyDeep<{
@@ -769,15 +794,20 @@ type ConversationStoppedByMissingVerificationActionType = ReadonlyDeep<{
     untrustedServiceIds: ReadonlyArray<ServiceIdString>;
   };
 }>;
-// eslint-disable-next-line local-rules/type-alias-readonlydeep -- FIXME
-export type MessageChangedActionType = {
+export type MarkReadActionType = ReadonlyDeep<{
+  type: typeof MARK_READ;
+  payload: {
+    conversationId: string;
+  };
+}>;
+export type MessageChangedActionType = ReadonlyDeep<{
   type: typeof MESSAGE_CHANGED;
   payload: {
     id: string;
     conversationId: string;
-    data: MessageAttributesType;
+    data: ReadonlyMessageAttributesType;
   };
-};
+}>;
 export type MessageDeletedActionType = ReadonlyDeep<{
   type: typeof MESSAGE_DELETED;
   payload: {
@@ -800,15 +830,14 @@ export type ShowSpoilerActionType = ReadonlyDeep<{
   };
 }>;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep -- FIXME
-export type MessagesAddedActionType = Readonly<{
+export type MessagesAddedActionType = ReadonlyDeep<{
   type: 'MESSAGES_ADDED';
   payload: {
     conversationId: string;
     isActive: boolean;
     isJustSent: boolean;
     isNewMessage: boolean;
-    messages: ReadonlyArray<MessageAttributesType>;
+    messages: ReadonlyArray<ReadonlyMessageAttributesType>;
   };
 }>;
 
@@ -831,19 +860,18 @@ export type RepairOldestMessageActionType = ReadonlyDeep<{
     conversationId: string;
   };
 }>;
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-export type MessagesResetActionType = {
+export type MessagesResetActionType = ReadonlyDeep<{
   type: 'MESSAGES_RESET';
   payload: {
     conversationId: string;
-    messages: ReadonlyArray<MessageAttributesType>;
+    messages: ReadonlyArray<ReadonlyMessageAttributesType>;
     metrics: MessageMetricsType;
     scrollToMessageId?: string;
     // The set of provided messages should be trusted, even if it conflicts with metrics,
     //   because we weren't looking for a specific time window of messages with our query.
     unboundedFetch: boolean;
   };
-};
+}>;
 export type SetMessageLoadingStateActionType = ReadonlyDeep<{
   type: 'SET_MESSAGE_LOADING_STATE';
   payload: {
@@ -955,8 +983,7 @@ export type ToggleConversationInChooseMembersActionType = ReadonlyDeep<{
   };
 }>;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep -- FIXME
-type PushPanelActionType = Readonly<{
+type PushPanelActionType = ReadonlyDeep<{
   type: typeof PUSH_PANEL;
   payload: PanelRenderType;
 }>;
@@ -980,9 +1007,20 @@ type ReplaceAvatarsActionType = ReadonlyDeep<{
     avatars: ReadonlyArray<AvatarDataType>;
   };
 }>;
+export type AddPreloadDataActionType = ReadonlyDeep<{
+  type: 'ADD_PRELOAD_DATA';
+  payload: ConversationPreloadDataType;
+}>;
+export type ConsumePreloadDataActionType = ReadonlyDeep<{
+  type: 'CONSUME_PRELOAD_DATA';
+  payload: {
+    conversationId: string;
+  };
+}>;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep -- FIXME
+// eslint-disable-next-line local-rules/type-alias-readonlydeep
 export type ConversationActionType =
+  | AddPreloadDataActionType
   | CancelVerificationDataByConversationActionType
   | ClearCancelledVerificationActionType
   | ClearGroupCreationErrorActionType
@@ -998,8 +1036,8 @@ export type ConversationActionType =
   | ComposeDeleteAvatarActionType
   | ComposeReplaceAvatarsActionType
   | ComposeSaveAvatarActionType
-  | ConversationAddedActionType
-  | ConversationChangedActionType
+  | ConsumePreloadDataActionType
+  | ConversationsUpdatedActionType
   | ConversationRemovedActionType
   | ConversationStoppedByMissingVerificationActionType
   | ConversationUnloadedActionType
@@ -1008,6 +1046,7 @@ export type ConversationActionType =
   | CreateGroupRejectedActionType
   | CustomColorRemovedActionType
   | DiscardMessagesActionType
+  | MarkReadActionType
   | MessageChangedActionType
   | MessageDeletedActionType
   | MessageExpandedActionType
@@ -1058,11 +1097,13 @@ export const actions = {
   acceptConversation,
   acknowledgeGroupMemberNameCollisions,
   addMembersToGroup,
+  addPreloadData,
   approvePendingMembershipFromGroupV2,
   reportSpam,
   blockAndReportSpam,
   blockConversation,
   blockGroupLinkRequests,
+  cancelAttachmentDownload,
   cancelConversationVerification,
   changeHasGroupLink,
   clearCancelledConversationVerification,
@@ -1077,8 +1118,8 @@ export const actions = {
   composeDeleteAvatarFromDisk,
   composeReplaceAvatar,
   composeSaveAvatarToDisk,
-  conversationAdded,
-  conversationChanged,
+  consumePreloadData,
+  conversationsUpdated,
   conversationRemoved,
   conversationStoppedByMissingVerification,
   createGroup,
@@ -1101,6 +1142,7 @@ export const actions = {
   loadRecentMediaItems,
   markAttachmentAsCorrupted,
   markMessageRead,
+  markOpenConversationRead,
   messageChanged,
   messageDeleted,
   messageExpanded,
@@ -1132,6 +1174,7 @@ export const actions = {
   reviewConversationNameCollision,
   revokePendingMembershipsFromGroupV2,
   saveAttachment,
+  saveAttachments,
   saveAttachmentFromMessage,
   saveAvatarToDisk,
   scrollToMessage,
@@ -1158,6 +1201,7 @@ export const actions = {
   setPreJoinConversation,
   setVoiceNotePlaybackRate,
   showArchivedConversations,
+  showAttachmentDownloadStillInProgressToast,
   showChooseGroupMembers,
   showConversation,
   showExpiredIncomingTapToViewToast,
@@ -1165,6 +1209,7 @@ export const actions = {
   showFindByUsername,
   showFindByPhoneNumber,
   showInbox,
+  showMediaNoLongerAvailableToast,
   startComposing,
   startConversation,
   startSettingGroupMetadata,
@@ -1202,6 +1247,7 @@ function onArchive(
       throw new Error('onArchive: Conversation not found!');
     }
 
+    const wasPinned = conversation.attributes.isPinned ?? false;
     conversation.setArchived(true);
 
     onConversationClosed(conversationId, 'archive')(
@@ -1216,13 +1262,15 @@ function onArchive(
         toastType: ToastType.ConversationArchived,
         parameters: {
           conversationId,
+          wasPinned,
         },
       },
     });
   };
 }
 function onUndoArchive(
-  conversationId: string
+  conversationId: string,
+  options: { wasPinned?: boolean } = {}
 ): ThunkAction<
   void,
   RootStateType,
@@ -1236,6 +1284,9 @@ function onUndoArchive(
     }
 
     conversation.setArchived(false);
+    if (options.wasPinned) {
+      conversation.pin();
+    }
     showConversation({
       conversationId,
     })(dispatch, getState, null);
@@ -1376,7 +1427,7 @@ function markMessageRead(
       return;
     }
 
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
     if (!message) {
       throw new Error(`markMessageRead: failed to load message ${messageId}`);
     }
@@ -1480,7 +1531,7 @@ async function getAvatarsAndUpdateConversation(
   conversation.attributes.avatars = nextAvatars.map(avatarData =>
     omit(avatarData, ['buffer'])
   );
-  window.Signal.Data.updateConversation(conversation.attributes);
+  await DataWriter.updateConversation(conversation.attributes);
 
   return nextAvatars;
 }
@@ -1624,6 +1675,7 @@ function setDisappearingMessages(
       task: async () =>
         conversation.updateExpirationTimer(valueToSet, {
           reason: 'setDisappearingMessages',
+          version: undefined,
         }),
     });
     dispatch({
@@ -1729,7 +1781,7 @@ function deleteMessages({
       await Promise.all(
         messageIds.map(
           async (messageId): Promise<MessageToDelete | undefined> => {
-            const message = await __DEPRECATED$getMessageById(messageId);
+            const message = await getMessageById(messageId);
             if (!message) {
               throw new Error(`deleteMessages: Message ${messageId} missing!`);
             }
@@ -1750,22 +1802,21 @@ function deleteMessages({
     let nearbyMessageId: string | null = null;
 
     if (nearbyMessageId == null && lastSelectedMessage != null) {
-      const foundMessageId =
-        await window.Signal.Data.getNearbyMessageFromDeletedSet({
-          conversationId,
-          lastSelectedMessage,
-          deletedMessageIds: messageIds,
-          includeStoryReplies: false,
-          storyId: undefined,
-        });
+      const foundMessageId = await DataReader.getNearbyMessageFromDeletedSet({
+        conversationId,
+        lastSelectedMessage,
+        deletedMessageIds: messageIds,
+        includeStoryReplies: false,
+        storyId: undefined,
+      });
 
       if (foundMessageId != null) {
         nearbyMessageId = foundMessageId;
       }
     }
 
-    await window.Signal.Data.removeMessages(messageIds, {
-      singleProtoJobQueue,
+    await DataWriter.removeMessages(messageIds, {
+      cleanupMessages,
     });
 
     popPanelForConversation()(dispatch, getState, undefined);
@@ -1778,7 +1829,7 @@ function deleteMessages({
       window.ConversationController.getOurConversationOrThrow();
     const capable = Boolean(ourConversation.get('capabilities')?.deleteSync);
 
-    if (!capable || !isEnabled('desktop.deleteSync.send')) {
+    if (!capable) {
       return;
     }
     if (messages.length === 0) {
@@ -1814,7 +1865,7 @@ function destroyMessages(
   void,
   RootStateType,
   unknown,
-  ConversationUnloadedActionType | NoopActionType
+  ConversationUnloadedActionType | NoopActionType | SearchActionType
 > {
   return async (dispatch, getState) => {
     const conversation = window.ConversationController.get(conversationId);
@@ -1833,6 +1884,20 @@ function destroyMessages(
         );
 
         await conversation.destroyMessages({ source: 'local-delete' });
+
+        // Deselect the conversation
+        if (
+          getState().conversations.selectedConversationId === conversationId
+        ) {
+          showConversation({ conversationId: undefined });
+        }
+
+        // Clear search state, in case it's showing in search
+        dispatch({
+          type: 'CLEAR_CONVERSATION_SEARCH',
+          payload: null,
+        });
+
         drop(conversation.updateLastMessage());
       },
     });
@@ -1876,7 +1941,7 @@ function setMessageToEdit(
       return;
     }
 
-    const message = (await __DEPRECATED$getMessageById(messageId))?.attributes;
+    const message = (await getMessageById(messageId))?.attributes;
     if (!message) {
       return;
     }
@@ -1969,7 +2034,7 @@ function generateNewGroupLink(
  * replace it with an actual action that fits in with the redux approach.
  */
 export const markViewed = (messageId: string): void => {
-  const message = window.MessageCache.__DEPRECATED$getById(messageId);
+  const message = window.MessageCache.getById(messageId);
   if (!message) {
     throw new Error(`markViewed: Message ${messageId} missing!`);
   }
@@ -1992,7 +2057,9 @@ export const markViewed = (messageId: string): void => {
     );
     senderAci = sourceServiceId;
 
-    const convoAttributes = message.getConversation()?.attributes;
+    const convo = window.ConversationController.get(
+      message.get('conversationId')
+    );
     const conversationId = message.get('conversationId');
     drop(
       conversationJobQueue.add({
@@ -2006,8 +2073,8 @@ export const markViewed = (messageId: string): void => {
             senderE164,
             senderAci,
             timestamp,
-            isDirectConversation: convoAttributes
-              ? isDirectConversation(convoAttributes)
+            isDirectConversation: convo
+              ? isDirectConversation(convo.attributes)
               : true,
           },
         ],
@@ -2189,7 +2256,7 @@ function removeCustomColorOnConversations(
     });
 
     if (conversationsToUpdate.length) {
-      await window.Signal.Data.updateConversations(conversationsToUpdate);
+      await DataWriter.updateConversations(conversationsToUpdate);
     }
 
     dispatch({
@@ -2209,7 +2276,7 @@ function resetAllChatColors(): ThunkAction<
 > {
   return async dispatch => {
     // Calling this with no args unsets all the colors in the db
-    await window.Signal.Data.updateAllConversationColors();
+    await DataWriter.updateAllConversationColors();
 
     window.getConversations().forEach(conversation => {
       conversation.set({
@@ -2233,23 +2300,66 @@ function kickOffAttachmentDownload(
   options: Readonly<{ messageId: string }>
 ): ThunkAction<void, RootStateType, unknown, NoopActionType> {
   return async dispatch => {
-    const message = await __DEPRECATED$getMessageById(options.messageId);
+    const message = await getMessageById(options.messageId);
     if (!message) {
       throw new Error(
         `kickOffAttachmentDownload: Message ${options.messageId} missing!`
       );
     }
-    const didUpdateValues = await message.queueAttachmentDownloads(
+    const didUpdateValues = await queueAttachmentDownloadsForMessage(
+      message,
       AttachmentDownloadUrgency.IMMEDIATE
     );
 
     if (didUpdateValues) {
       drop(
-        window.Signal.Data.saveMessage(message.attributes, {
+        DataWriter.saveMessage(message.attributes, {
           ourAci: window.textsecure.storage.user.getCheckedAci(),
+          postSaveUpdates,
         })
       );
     }
+
+    dispatch({
+      type: 'NOOP',
+      payload: null,
+    });
+  };
+}
+
+function cancelAttachmentDownload({
+  messageId,
+}: Readonly<{ messageId: string }>): ThunkAction<
+  void,
+  RootStateType,
+  unknown,
+  NoopActionType
+> {
+  return async dispatch => {
+    const message = await getMessageById(messageId);
+    if (!message) {
+      log.warn(`cancelAttachmentDownload: Message ${messageId} missing!`);
+    } else {
+      message.set({
+        attachments: (message.get('attachments') || []).map(attachment => ({
+          ...attachment,
+          pending: false,
+        })),
+      });
+
+      const ourAci = window.textsecure.storage.user.getCheckedAci();
+      await DataWriter.saveMessage(message.attributes, {
+        ourAci,
+        postSaveUpdates,
+      });
+    }
+
+    // A click kicks off downloads for every attachment in a message, so cancel does too
+    await AttachmentDownloadManager.cancelJobs(job => {
+      return job.messageId === messageId;
+    });
+
+    await DataWriter.removeAttachmentDownloadJobsForMessage(messageId);
 
     dispatch({
       type: 'NOOP',
@@ -2267,13 +2377,7 @@ function markAttachmentAsCorrupted(
   options: AttachmentOptions
 ): ThunkAction<void, RootStateType, unknown, NoopActionType> {
   return async dispatch => {
-    const message = await __DEPRECATED$getMessageById(options.messageId);
-    if (!message) {
-      throw new Error(
-        `markAttachmentAsCorrupted: Message ${options.messageId} missing!`
-      );
-    }
-    message.markAttachmentAsCorrupted(options.attachment);
+    await doMarkAttachmentAsCorrupted(options.messageId, options.attachment);
 
     dispatch({
       type: 'NOOP',
@@ -2286,7 +2390,7 @@ function openGiftBadge(
   messageId: string
 ): ThunkAction<void, RootStateType, unknown, ShowToastActionType> {
   return async dispatch => {
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
     if (!message) {
       throw new Error(`openGiftBadge: Message ${messageId} missing!`);
     }
@@ -2306,11 +2410,106 @@ function retryMessageSend(
   messageId: string
 ): ThunkAction<void, RootStateType, unknown, NoopActionType> {
   return async dispatch => {
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
     if (!message) {
       throw new Error(`retryMessageSend: Message ${messageId} missing!`);
     }
-    await message.retrySend();
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const conversation = window.ConversationController.get(
+      message.attributes.conversationId
+    )!;
+
+    let currentConversationRecipients: Set<string> | undefined;
+
+    const { storyDistributionListId } = message.attributes;
+
+    if (storyDistributionListId) {
+      const storyDistribution =
+        await DataReader.getStoryDistributionWithMembers(
+          storyDistributionListId
+        );
+
+      if (!storyDistribution) {
+        markFailed(message);
+        return;
+      }
+
+      currentConversationRecipients = new Set(
+        storyDistribution.members
+          .map(serviceId => window.ConversationController.get(serviceId)?.id)
+          .filter(isNotNil)
+      );
+    } else {
+      currentConversationRecipients = conversation.getMemberConversationIds();
+    }
+
+    // Determine retry recipients and get their most up-to-date addressing information
+    const oldSendStateByConversationId =
+      message.get('sendStateByConversationId') || {};
+
+    const newSendStateByConversationId = { ...oldSendStateByConversationId };
+    for (const [conversationId, sendState] of Object.entries(
+      oldSendStateByConversationId
+    )) {
+      if (isSent(sendState.status)) {
+        continue;
+      }
+
+      const recipient = window.ConversationController.get(conversationId);
+      if (
+        !recipient ||
+        (!currentConversationRecipients.has(conversationId) &&
+          !isMe(recipient.attributes))
+      ) {
+        continue;
+      }
+
+      newSendStateByConversationId[conversationId] = sendStateReducer(
+        sendState,
+        {
+          type: SendActionType.ManuallyRetried,
+          updatedAt: Date.now(),
+        }
+      );
+    }
+
+    message.set({ sendStateByConversationId: newSendStateByConversationId });
+
+    if (isStory(message.attributes)) {
+      await conversationJobQueue.add(
+        {
+          type: conversationQueueJobEnum.enum.Story,
+          conversationId: conversation.id,
+          messageIds: [message.id],
+          // using the group timestamp, which will differ from the 1:1 timestamp
+          timestamp: message.attributes.timestamp,
+        },
+        async jobToInsert => {
+          await DataWriter.saveMessage(message.attributes, {
+            jobToInsert,
+            ourAci: window.textsecure.storage.user.getCheckedAci(),
+            postSaveUpdates,
+          });
+        }
+      );
+    } else {
+      await conversationJobQueue.add(
+        {
+          type: conversationQueueJobEnum.enum.NormalMessage,
+          conversationId: conversation.id,
+          messageId: message.id,
+          revision: conversation.get('revision'),
+        },
+        async jobToInsert => {
+          await DataWriter.saveMessage(message.attributes, {
+            jobToInsert,
+            ourAci: window.textsecure.storage.user.getCheckedAci(),
+            postSaveUpdates,
+          });
+        }
+      );
+    }
 
     dispatch({
       type: 'NOOP',
@@ -2323,12 +2522,12 @@ export function copyMessageText(
   messageId: string
 ): ThunkAction<void, RootStateType, unknown, NoopActionType> {
   return async dispatch => {
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
     if (!message) {
       throw new Error(`copy: Message ${messageId} missing!`);
     }
 
-    const body = message.getNotificationText();
+    const body = getNotificationTextForMessage(message.attributes);
     clipboard.writeText(body);
 
     dispatch({
@@ -2342,7 +2541,7 @@ export function retryDeleteForEveryone(
   messageId: string
 ): ThunkAction<void, RootStateType, unknown, NoopActionType> {
   return async dispatch => {
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
     if (!message) {
       throw new Error(`retryDeleteForEveryone: Message ${messageId} missing!`);
     }
@@ -2354,7 +2553,9 @@ export function retryDeleteForEveryone(
     }
 
     try {
-      const conversation = message.getConversation();
+      const conversation = window.ConversationController.get(
+        message.get('conversationId')
+      );
       if (!conversation) {
         throw new Error(
           `retryDeleteForEveryone: Conversation for ${messageId} missing!`
@@ -2371,7 +2572,7 @@ export function retryDeleteForEveryone(
       };
 
       log.info(
-        `retryDeleteForEveryone: Adding job for message ${message.idForLogging()}!`
+        `retryDeleteForEveryone: Adding job for message ${getMessageIdForLogging(message.attributes)}!`
       );
       await conversationJobQueue.add(jobData);
 
@@ -2395,27 +2596,28 @@ export function setVoiceNotePlaybackRate({
 }: {
   conversationId: string;
   rate: number;
-}): ThunkAction<void, RootStateType, unknown, ConversationChangedActionType> {
+}): ThunkAction<void, RootStateType, unknown, ConversationsUpdatedActionType> {
   return async dispatch => {
     const conversationModel = window.ConversationController.get(conversationId);
     if (conversationModel) {
       conversationModel.set({
         voiceNotePlaybackRate: rate === 1 ? undefined : rate,
       });
-      window.Signal.Data.updateConversation(conversationModel.attributes);
+      await DataWriter.updateConversation(conversationModel.attributes);
     }
 
     const conversation = conversationModel?.format();
 
     if (conversation) {
       dispatch({
-        type: 'CONVERSATION_CHANGED',
+        type: 'CONVERSATIONS_UPDATED',
         payload: {
-          id: conversationId,
-          data: {
-            ...conversation,
-            voiceNotePlaybackRate: rate,
-          },
+          data: [
+            {
+              ...conversation,
+              voiceNotePlaybackRate: rate,
+            },
+          ],
         },
       });
     }
@@ -2456,7 +2658,7 @@ function colorSelected({
         });
       }
 
-      window.Signal.Data.updateConversation(conversation.attributes);
+      await DataWriter.updateConversation(conversation.attributes);
     }
 
     dispatch({
@@ -2635,34 +2837,34 @@ function setPreJoinConversation(
     },
   };
 }
-function conversationAdded(
-  id: string,
-  data: ConversationType
-): ConversationAddedActionType {
-  return {
-    type: 'CONVERSATION_ADDED',
-    payload: {
-      id,
-      data,
-    },
-  };
-}
-function conversationChanged(
-  id: string,
-  data: ConversationType
-): ThunkAction<void, RootStateType, unknown, ConversationChangedActionType> {
-  return dispatch => {
-    calling.groupMembersChanged(id);
+
+function conversationsUpdated(
+  data: Array<ConversationType>
+): ThunkAction<void, RootStateType, unknown, ConversationsUpdatedActionType> {
+  return (dispatch, getState) => {
+    for (const conversation of data) {
+      calling.groupMembersChanged(conversation.id);
+    }
+
+    const { conversationLookup: oldConversationLookup } =
+      getState().conversations;
 
     dispatch({
-      type: 'CONVERSATION_CHANGED',
+      type: 'CONVERSATIONS_UPDATED',
       payload: {
-        id,
         data,
       },
     });
+
+    dispatch(
+      searchActions.updateSearchResultsOnConversationUpdate(
+        oldConversationLookup,
+        data
+      )
+    );
   };
 }
+
 function conversationRemoved(id: string): ConversationRemovedActionType {
   return {
     type: 'CONVERSATION_REMOVED',
@@ -2779,20 +2981,17 @@ function toggleSelectMessage(
         message => message
       );
 
-      const betweenIds = await window.Signal.Data.getMessagesBetween(
-        conversationId,
-        {
-          after: {
-            sent_at: after.sent_at,
-            received_at: after.received_at,
-          },
-          before: {
-            sent_at: before.sent_at,
-            received_at: before.received_at,
-          },
-          includeStoryReplies: !isGroup(conversation.attributes),
-        }
-      );
+      const betweenIds = await DataReader.getMessagesBetween(conversationId, {
+        after: {
+          sent_at: after.sent_at,
+          received_at: after.received_at,
+        },
+        before: {
+          sent_at: before.sent_at,
+          received_at: before.received_at,
+        },
+        includeStoryReplies: !isGroup(conversation.attributes),
+      });
 
       toggledMessageIds = [messageId, ...betweenIds];
     } else {
@@ -2864,10 +3063,30 @@ function conversationStoppedByMissingVerification(payload: {
   };
 }
 
+export function markOpenConversationRead(
+  conversationId: string
+): ThunkAction<void, RootStateType, unknown, MarkReadActionType> {
+  return async (dispatch, getState) => {
+    const state = getState();
+    const { nav } = state;
+
+    if (nav.selectedNavTab !== NavTab.Chats) {
+      return;
+    }
+
+    dispatch({
+      type: MARK_READ,
+      payload: {
+        conversationId,
+      },
+    });
+  };
+}
+
 export function messageChanged(
   id: string,
   conversationId: string,
-  data: MessageAttributesType
+  data: ReadonlyMessageAttributesType
 ): MessageChangedActionType {
   return {
     type: MESSAGE_CHANGED,
@@ -2937,7 +3156,7 @@ function messagesAdded({
   isActive: boolean;
   isJustSent: boolean;
   isNewMessage: boolean;
-  messages: ReadonlyArray<MessageAttributesType>;
+  messages: ReadonlyArray<ReadonlyMessageAttributesType>;
 }): ThunkAction<void, RootStateType, unknown, MessagesAddedActionType> {
   return (dispatch, getState) => {
     const state = getState();
@@ -2992,14 +3211,13 @@ function reviewConversationNameCollision(): ReviewConversationNameCollisionActio
   };
 }
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-export type MessageResetOptionsType = {
+export type MessageResetOptionsType = ReadonlyDeep<{
   conversationId: string;
-  messages: ReadonlyArray<MessageAttributesType>;
+  messages: ReadonlyArray<ReadonlyMessageAttributesType>;
   metrics: MessageMetricsType;
   scrollToMessageId?: string;
   unboundedFetch?: boolean;
-};
+}>;
 
 function messagesReset({
   conversationId,
@@ -3024,6 +3242,33 @@ function messagesReset({
       messages,
       metrics,
       scrollToMessageId,
+    },
+  };
+}
+function addPreloadData(
+  preloadData: ConversationPreloadDataType
+): AddPreloadDataActionType {
+  const { messages, conversationId } = preloadData;
+  for (const message of messages) {
+    strictAssert(
+      message.conversationId === conversationId,
+      `addPreloadData(${conversationId}): invalid message conversationId ` +
+        `${message.conversationId}`
+    );
+  }
+
+  return {
+    type: 'ADD_PRELOAD_DATA',
+    payload: preloadData,
+  };
+}
+function consumePreloadData(
+  conversationId: string
+): ConsumePreloadDataActionType {
+  return {
+    type: 'CONSUME_PRELOAD_DATA',
+    payload: {
+      conversationId,
     },
   };
 }
@@ -3085,7 +3330,7 @@ function pushPanelForConversation(
 
       const message =
         conversations.messagesLookup[messageId] ||
-        (await __DEPRECATED$getMessageById(messageId))?.attributes;
+        (await getMessageById(messageId))?.attributes;
       if (!message) {
         throw new Error(
           'pushPanelForConversation: could not find message for MessageDetails'
@@ -3161,14 +3406,16 @@ function deleteMessagesForEveryone(
     await Promise.all(
       messageIds.map(async messageId => {
         try {
-          const message = window.MessageCache.__DEPRECATED$getById(messageId);
+          const message = window.MessageCache.getById(messageId);
           if (!message) {
             throw new Error(
               `deleteMessageForEveryone: Message ${messageId} missing!`
             );
           }
 
-          const conversation = message.getConversation();
+          const conversation = window.ConversationController.get(
+            message.get('conversationId')
+          );
           if (!conversation) {
             throw new Error('deleteMessageForEveryone: no conversation');
           }
@@ -3434,7 +3681,7 @@ function reportSpam(
             addReportSpamJob({
               conversation,
               getMessageServerGuidsForSpam:
-                window.Signal.Data.getMessageServerGuidsForSpam,
+                DataReader.getMessageServerGuidsForSpam,
               jobQueue: reportSpamJobQueue,
             }),
           ]);
@@ -3484,7 +3731,7 @@ function blockAndReportSpam(
               addReportSpamJob({
                 conversation: conversationForSpam,
                 getMessageServerGuidsForSpam:
-                  window.Signal.Data.getMessageServerGuidsForSpam,
+                  DataReader.getMessageServerGuidsForSpam,
                 jobQueue: reportSpamJobQueue,
               }),
           ]);
@@ -3654,20 +3901,17 @@ function loadRecentMediaItems(
 ): ThunkAction<void, RootStateType, unknown, SetRecentMediaItemsActionType> {
   return async dispatch => {
     const messages: Array<MessageAttributesType> =
-      await window.Signal.Data.getMessagesWithVisualMediaAttachments(
+      await DataReader.getOlderMessagesByConversation({
         conversationId,
-        {
-          limit,
-        }
-      );
+        limit,
+        requireVisualMediaAttachments: true,
+        storyId: undefined,
+        includeStoryReplies: false,
+      });
 
     // Cache these messages in memory to ensure Lightbox can find them
     messages.forEach(message => {
-      window.MessageCache.__DEPRECATED$register(
-        message.id,
-        message,
-        'loadRecentMediaItems'
-      );
+      window.MessageCache.register(new MessageModel(message));
     });
 
     let index = 0;
@@ -3696,9 +3940,9 @@ function loadRecentMediaItems(
                     window.ConversationController.get(message.sourceServiceId)
                       ?.id || message.conversationId,
                   id: message.id,
-                  received_at: message.received_at,
-                  received_at_ms: Number(message.received_at_ms),
-                  sent_at: message.sent_at,
+                  receivedAt: message.received_at,
+                  receivedAtMs: Number(message.received_at_ms),
+                  sentAt: message.sent_at,
                 },
               };
 
@@ -3767,12 +4011,111 @@ function saveAttachment(
   };
 }
 
+const showSaveMultiDialog = (): Promise<{
+  canceled: boolean;
+  dirPath?: string;
+}> => {
+  return ipcRenderer.invoke('show-save-multi-dialog');
+};
+
+export type SaveAttachmentsActionCreatorType = ReadonlyDeep<
+  (
+    attachments: ReadonlyArray<AttachmentType>,
+    timestamp?: number,
+    index?: number
+  ) => unknown
+>;
+
+function saveAttachments(
+  attachments: ReadonlyArray<AttachmentType>,
+  timestamp = Date.now()
+): ThunkAction<void, RootStateType, unknown, ShowToastActionType> {
+  return async dispatch => {
+    // check if any of the attachments could be dangerous
+    for (const attachment of attachments) {
+      const { fileName = '' } = attachment;
+
+      const isDangerous = isFileDangerous(fileName);
+      if (isDangerous) {
+        dispatch({
+          type: SHOW_TOAST,
+          payload: {
+            toastType: ToastType.DangerousFileType,
+          },
+        });
+        return;
+      }
+    }
+
+    const { canceled, dirPath } = await showSaveMultiDialog();
+    if (canceled || !dirPath) {
+      return;
+    }
+
+    const { readAttachmentData, saveAttachmentToDisk } =
+      window.Signal.Migrations;
+
+    let fullPath;
+    let index = 0;
+    for (const attachment of attachments) {
+      index += 1;
+
+      // eslint-disable-next-line no-await-in-loop
+      const result = await Attachment.save({
+        attachment,
+        index,
+        readAttachmentData,
+        saveAttachmentToDisk,
+        timestamp,
+        baseDir: dirPath,
+      });
+
+      if (fullPath === undefined) {
+        fullPath = result;
+      }
+    }
+
+    if (fullPath == null) {
+      throw new Error('saveAttachments: Returned path to attachment is null!');
+    }
+
+    dispatch({
+      type: SHOW_TOAST,
+      payload: {
+        toastType: ToastType.FileSaved,
+        parameters: {
+          countOfFiles: attachments.length,
+          fullPath,
+        },
+      },
+    });
+  };
+}
+
+function showAttachmentDownloadStillInProgressToast(
+  count: number
+): ShowToastActionType {
+  log.info(
+    `showAttachmentDownloadStillInProgressToast: ${count} still-pending attachments`
+  );
+  return {
+    type: SHOW_TOAST,
+    payload: {
+      toastType: ToastType.AttachmentDownloadStillInProgress,
+      parameters: {
+        count,
+      },
+    },
+  };
+}
+
+// is only used by lightbox/ gallery
 export function saveAttachmentFromMessage(
   messageId: string,
   providedAttachment?: AttachmentType
 ): ThunkAction<void, RootStateType, unknown, ShowToastActionType> {
   return async (dispatch, getState) => {
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
     if (!message) {
       throw new Error(
         `saveAttachmentFromMessage: Message ${messageId} missing!`
@@ -3839,7 +4182,7 @@ export function scrollToOldestUnreadMention(
     }
 
     const oldestUnreadMention =
-      await window.Signal.Data.getOldestUnreadMentionOfMeForConversation(
+      await DataReader.getOldestUnreadMentionOfMeForConversation(
         conversationId,
         {
           includeStoryReplies: !isGroup(conversation),
@@ -3865,7 +4208,7 @@ export function scrollToMessage(
       throw new Error('scrollToMessage: No conversation found');
     }
 
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
     if (!message) {
       throw new Error(`scrollToMessage: failed to load message ${messageId}`);
     }
@@ -3879,7 +4222,7 @@ export function scrollToMessage(
 
     let isInMemory = true;
 
-    if (!window.MessageCache.__DEPRECATED$getById(messageId)) {
+    if (!window.MessageCache.getById(messageId)) {
       isInMemory = false;
     }
 
@@ -4151,7 +4494,7 @@ function toggleGroupsForStorySend(
         conversation.set({
           storySendMode: newStorySendMode,
         });
-        window.Signal.Data.updateConversation(conversation.attributes);
+        await DataWriter.updateConversation(conversation.attributes);
         conversation.captureChange('storySendMode');
       })
     );
@@ -4219,6 +4562,14 @@ function showInbox(): ShowInboxActionType {
   return {
     type: 'SHOW_INBOX',
     payload: null,
+  };
+}
+function showMediaNoLongerAvailableToast(): ShowToastActionType {
+  return {
+    type: SHOW_TOAST,
+    payload: {
+      toastType: ToastType.MediaNoLongerAvailable,
+    },
   };
 }
 
@@ -4299,20 +4650,25 @@ function onConversationOpened(
   | SetQuotedMessageActionType
 > {
   return async (dispatch, getState) => {
+    const promises: Array<Promise<void>> = [];
     const conversation = window.ConversationController.get(conversationId);
     if (!conversation) {
       throw new Error('onConversationOpened: Conversation not found');
     }
 
+    const logId = `onConversationOpened(${conversation.idForLogging()})`;
+
+    log.info(`${logId}: Updating newly opened conversation state`);
+
     if (messageId) {
-      const message = await __DEPRECATED$getMessageById(messageId);
+      const message = await getMessageById(messageId);
 
       if (message) {
         drop(conversation.loadAndScroll(messageId));
         return;
       }
 
-      log.warn(`onOpened: Did not find message ${messageId}`);
+      log.warn(`${logId}: Did not find message ${messageId}`);
     }
 
     const { retryPlaceholders } = window.Signal.Services;
@@ -4330,7 +4686,7 @@ function onConversationOpened(
       );
     };
 
-    drop(loadAndUpdate());
+    promises.push(loadAndUpdate());
 
     dispatch(setComposerFocus(conversation.id));
 
@@ -4343,17 +4699,17 @@ function onConversationOpened(
       );
     }
 
-    drop(conversation.fetchLatestGroupV2Data());
+    promises.push(conversation.fetchLatestGroupV2Data());
     strictAssert(
       conversation.throttledMaybeMigrateV1Group !== undefined,
-      'Conversation model should be initialized'
+      `${logId}: Conversation model should be initialized`
     );
-    drop(conversation.throttledMaybeMigrateV1Group());
+    promises.push(conversation.throttledMaybeMigrateV1Group());
     strictAssert(
       conversation.throttledFetchSMSOnlyUUID !== undefined,
-      'Conversation model should be initialized'
+      `${logId}: Conversation model should be initialized`
     );
-    drop(conversation.throttledFetchSMSOnlyUUID());
+    promises.push(conversation.throttledFetchSMSOnlyUUID());
 
     const ourAci = window.textsecure.storage.user.getAci();
     if (
@@ -4362,20 +4718,25 @@ function onConversationOpened(
     ) {
       strictAssert(
         conversation.throttledGetProfiles !== undefined,
-        'Conversation model should be initialized'
+        `${logId}: Conversation model should be initialized`
       );
       await conversation.throttledGetProfiles().catch(() => {
         /* nothing to do here; logging already happened */
       });
     }
 
-    drop(conversation.updateVerified());
+    promises.push(conversation.updateVerified());
 
     replaceAttachments(
       conversation.get('id'),
       conversation.get('draftAttachments') || []
     )(dispatch, getState, undefined);
     dispatch(resetComposer(conversationId));
+
+    await Promise.all(promises);
+    if (window.SignalCI) {
+      window.SignalCI.handleEvent('conversationOpenComplete', null);
+    }
   };
 }
 
@@ -4413,7 +4774,7 @@ function onConversationClosed(
         });
       }
 
-      window.Signal.Data.updateConversation(conversation.attributes);
+      await DataWriter.updateConversation(conversation.attributes);
 
       drop(conversation.updateLastMessage());
     }
@@ -4426,6 +4787,8 @@ function onConversationClosed(
         conversationId,
       },
     });
+
+    dispatch(searchActions.maybeRemoveReadConversations([conversationId]));
   };
 }
 
@@ -4437,9 +4800,9 @@ function showArchivedConversations(): ShowArchivedConversationsActionType {
 }
 
 function doubleCheckMissingQuoteReference(messageId: string): NoopActionType {
-  const message = window.MessageCache.__DEPRECATED$getById(messageId);
+  const message = window.MessageCache.getById(messageId);
   if (message) {
-    void message.doubleCheckMissingQuoteReference();
+    drop(doDoubleCheckMissingQuoteReference(message));
   }
 
   return {
@@ -4478,8 +4841,8 @@ export function getEmptyState(): ConversationsStateType {
 }
 
 export function updateConversationLookups(
-  added: ConversationType | undefined,
-  removed: ConversationType | undefined,
+  added: ReadonlyArray<ConversationType> | undefined,
+  removed: ReadonlyArray<ConversationType> | undefined,
   state: ConversationsStateType
 ): Pick<
   ConversationsStateType,
@@ -4494,67 +4857,135 @@ export function updateConversationLookups(
     conversationsByGroupId: state.conversationsByGroupId,
     conversationsByUsername: state.conversationsByUsername,
   };
+  const removedE164s = removed?.map(convo => convo.e164).filter(isNotNil);
+  const removedServiceIds = removed
+    ?.map(convo => convo.serviceId)
+    .filter(isNotNil);
+  const removedPnis = removed?.map(convo => convo.pni).filter(isNotNil);
+  const removedGroupIds = removed?.map(convo => convo.groupId).filter(isNotNil);
+  const removedUsernames = removed
+    ?.map(convo => convo.username)
+    .filter(isNotNil);
 
-  if (removed && removed.e164) {
-    result.conversationsByE164 = omit(result.conversationsByE164, removed.e164);
+  if (removedE164s?.length) {
+    result.conversationsByE164 = omit(result.conversationsByE164, removedE164s);
   }
-  if (removed && removed.serviceId) {
+
+  if (removedServiceIds?.length) {
     result.conversationsByServiceId = omit(
       result.conversationsByServiceId,
-      removed.serviceId
+      removedServiceIds
     );
   }
-  if (removed && removed.pni) {
+  if (removedPnis?.length) {
     result.conversationsByServiceId = omit(
       result.conversationsByServiceId,
-      removed.pni
+      removedPnis
     );
   }
-  if (removed && removed.groupId) {
+  if (removedGroupIds?.length) {
     result.conversationsByGroupId = omit(
       result.conversationsByGroupId,
-      removed.groupId
+      removedGroupIds
     );
   }
-  if (removed && removed.username) {
+  if (removedUsernames?.length) {
     result.conversationsByUsername = omit(
       result.conversationsByUsername,
-      removed.username
+      removedUsernames
     );
   }
 
-  if (added && added.e164) {
+  function isFirstElementNotNil(val: Array<unknown>) {
+    return val[0] != null;
+  }
+  const addedE164s = added
+    ?.map(convo => [convo.e164, convo])
+    .filter(isFirstElementNotNil);
+  const addedServiceIds = added
+    ?.map(convo => [convo.serviceId, convo])
+    .filter(isFirstElementNotNil);
+  const addedPnis = added
+    ?.map(convo => [convo.pni, convo])
+    .filter(isFirstElementNotNil);
+  const addedGroupIds = added
+    ?.map(convo => [convo.groupId, convo])
+    .filter(isFirstElementNotNil);
+  const addedUsernames = added
+    ?.map(convo => [convo.username, convo])
+    .filter(isFirstElementNotNil);
+
+  if (addedE164s?.length) {
     result.conversationsByE164 = {
       ...result.conversationsByE164,
-      [added.e164]: added,
+      ...Object.fromEntries(addedE164s),
     };
   }
-  if (added && added.serviceId) {
+  if (addedServiceIds?.length) {
     result.conversationsByServiceId = {
       ...result.conversationsByServiceId,
-      [added.serviceId]: added,
+      ...Object.fromEntries(addedServiceIds),
     };
   }
-  if (added && added.pni) {
+  if (addedPnis?.length) {
     result.conversationsByServiceId = {
       ...result.conversationsByServiceId,
-      [added.pni]: added,
+      ...Object.fromEntries(addedPnis),
     };
   }
-  if (added && added.groupId) {
+  if (addedGroupIds?.length) {
     result.conversationsByGroupId = {
       ...result.conversationsByGroupId,
-      [added.groupId]: added,
+      ...Object.fromEntries(addedGroupIds),
     };
   }
-  if (added && added.username) {
+  if (addedUsernames?.length) {
     result.conversationsByUsername = {
       ...result.conversationsByUsername,
-      [added.username]: added,
+      ...Object.fromEntries(addedUsernames),
     };
   }
 
   return result;
+}
+
+function updateRootStateDueToConversationUpdate(
+  state: ConversationsStateType,
+  conversation: ConversationType
+): ConversationsStateType {
+  if (state.selectedConversationId !== conversation.id) {
+    return state;
+  }
+
+  let { showArchived } = state;
+  const { selectedConversationId, conversationLookup } = state;
+  const existing = conversationLookup[conversation.id];
+
+  const keysToOmit: Array<keyof ConversationsStateType> = [];
+  const keyValuesToAdd: { hasContactSpoofingReview?: false } = {};
+
+  // Archived -> Inbox: we go back to the normal inbox view
+  if (existing.isArchived && !conversation.isArchived) {
+    showArchived = false;
+  }
+  // Inbox -> Archived: no conversation is selected
+  // Note: With today's stacked conversations architecture, this can result in weird
+  //   behavior - no selected conversation in the left pane, but a conversation show
+  //   in the right pane.
+  if (!existing.isArchived && conversation.isArchived) {
+    keysToOmit.push('selectedConversationId');
+  }
+
+  if (!existing.isBlocked && conversation.isBlocked) {
+    keyValuesToAdd.hasContactSpoofingReview = false;
+  }
+
+  return {
+    ...omit(state, keysToOmit),
+    ...keyValuesToAdd,
+    selectedConversationId,
+    showArchived,
+  };
 }
 
 function closeComposerModal(
@@ -4721,7 +5152,7 @@ function maybeUpdateSelectedMessageForDetails(
     targetedMessageForDetails,
   }: {
     messageId: string;
-    targetedMessageForDetails: MessageAttributesType | undefined;
+    targetedMessageForDetails: ReadonlyMessageAttributesType | undefined;
   },
   state: ConversationsStateType
 ): ConversationsStateType {
@@ -4784,11 +5215,99 @@ function updateNicknameAndNote(
       nicknameFamilyName: nickname?.familyName,
       note,
     });
-    window.Signal.Data.updateConversation(conversationModel.attributes);
+    await DataWriter.updateConversation(conversationModel.attributes);
     const conversation = conversationModel.format();
-    dispatch(conversationChanged(conversationId, conversation));
+    dispatch(conversationsUpdated([conversation]));
     conversationModel.captureChange('nicknameAndNote');
   };
+}
+
+function updateMessageLookup(
+  state: ConversationsStateType,
+  {
+    conversationId,
+    messages,
+    metrics,
+    scrollToMessageId,
+    unboundedFetch,
+  }: {
+    conversationId: string;
+    messages: ReadonlyArray<ReadonlyMessageAttributesType>;
+    metrics: MessageMetricsType;
+    scrollToMessageId?: string | undefined;
+    unboundedFetch: boolean;
+  }
+): ConversationsStateType {
+  const { messagesByConversation, messagesLookup } = state;
+  const existingConversation = messagesByConversation[conversationId];
+
+  const lookup = fromPairs(messages.map(message => [message.id, message]));
+  const sorted = orderBy(
+    values(lookup),
+    ['received_at', 'sent_at'],
+    ['ASC', 'ASC']
+  );
+
+  let { newest, oldest } = metrics;
+
+  // If our metrics are a little out of date, we'll fix them up
+  if (sorted.length > 0) {
+    const first = sorted[0];
+    if (first && (!oldest || first.received_at <= oldest.received_at)) {
+      oldest = pick(first, ['id', 'received_at', 'sent_at']);
+    }
+
+    const last = sorted[sorted.length - 1];
+    if (
+      last &&
+      (!newest || unboundedFetch || last.received_at >= newest.received_at)
+    ) {
+      newest = pick(last, ['id', 'received_at', 'sent_at']);
+    }
+  }
+
+  const messageIds = sorted.map(message => message.id);
+
+  return {
+    ...state,
+    preloadData: undefined,
+    ...(state.selectedConversationId === conversationId
+      ? {
+          targetedMessage: scrollToMessageId,
+          targetedMessageCounter: state.targetedMessageCounter + 1,
+          targetedMessageSource: TargetedMessageSource.Reset,
+        }
+      : {}),
+    messagesLookup: {
+      ...messagesLookup,
+      ...lookup,
+    },
+    messagesByConversation: {
+      ...messagesByConversation,
+      [conversationId]: {
+        messageChangeCounter: 0,
+        scrollToMessageId,
+        scrollToMessageCounter: existingConversation
+          ? existingConversation.scrollToMessageCounter + 1
+          : 0,
+        messageIds,
+        metrics: {
+          ...metrics,
+          newest,
+          oldest,
+        },
+      },
+    },
+  };
+}
+
+function dropPreloadData(
+  state: ConversationsStateType
+): ConversationsStateType {
+  if (state.preloadData == null) {
+    return state;
+  }
+  return { ...state, preloadData: undefined };
 }
 
 export function reducer(
@@ -4983,66 +5502,39 @@ export function reducer(
       preJoinConversation: data,
     };
   }
-  if (action.type === 'CONVERSATION_ADDED') {
+  if (action.type === 'CONVERSATIONS_UPDATED') {
     const { payload } = action;
-    const { id, data } = payload;
-    const { conversationLookup } = state;
-
-    return {
-      ...state,
-      conversationLookup: {
-        ...conversationLookup,
-        [id]: data,
-      },
-      ...updateConversationLookups(data, undefined, state),
-    };
-  }
-  if (action.type === 'CONVERSATION_CHANGED') {
-    const { payload } = action;
-    const { id, data } = payload;
+    const { data: conversations } = payload;
     const { conversationLookup } = state;
 
     const { selectedConversationId } = state;
-    let { showArchived } = state;
 
-    const existing = conversationLookup[id];
-    // We only modify the lookup if we already had that conversation and the conversation
-    //   changed.
-    if (!existing || data === existing) {
-      return state;
+    const selectedConversation = conversations.find(
+      convo => convo.id === selectedConversationId
+    );
+
+    let updatedState = state;
+
+    if (selectedConversation) {
+      updatedState = updateRootStateDueToConversationUpdate(
+        state,
+        selectedConversation
+      );
     }
 
-    const keysToOmit: Array<keyof ConversationsStateType> = [];
-    const keyValuesToAdd: { hasContactSpoofingReview?: false } = {};
+    const existingConversations = conversations
+      .map(conversation => conversationLookup[conversation.id])
+      .filter(isNotNil);
 
-    if (selectedConversationId === id) {
-      // Archived -> Inbox: we go back to the normal inbox view
-      if (existing.isArchived && !data.isArchived) {
-        showArchived = false;
-      }
-      // Inbox -> Archived: no conversation is selected
-      // Note: With today's stacked conversations architecture, this can result in weird
-      //   behavior - no selected conversation in the left pane, but a conversation show
-      //   in the right pane.
-      if (!existing.isArchived && data.isArchived) {
-        keysToOmit.push('selectedConversationId');
-      }
-
-      if (!existing.isBlocked && data.isBlocked) {
-        keyValuesToAdd.hasContactSpoofingReview = false;
-      }
+    const newConversationLookup = { ...conversationLookup };
+    for (const conversation of conversations) {
+      newConversationLookup[conversation.id] = conversation;
     }
 
     return {
-      ...omit(state, keysToOmit),
-      ...keyValuesToAdd,
-      selectedConversationId,
-      showArchived,
-      conversationLookup: {
-        ...conversationLookup,
-        [id]: data,
-      },
-      ...updateConversationLookups(data, existing, state),
+      ...updatedState,
+      conversationLookup: newConversationLookup,
+      ...updateConversationLookups(conversations, existingConversations, state),
     };
   }
   if (action.type === 'CONVERSATION_REMOVED') {
@@ -5051,6 +5543,7 @@ export function reducer(
     const { conversationLookup } = state;
     const existing = getOwn(conversationLookup, id);
 
+    onConversationClosed(id, 'removed');
     // No need to make a change if we didn't have a record of this conversation!
     if (!existing) {
       return state;
@@ -5059,7 +5552,7 @@ export function reducer(
     return {
       ...state,
       conversationLookup: omit(conversationLookup, [id]),
-      ...updateConversationLookups(undefined, existing, state),
+      ...updateConversationLookups(undefined, [existing], state),
     };
   }
   if (action.type === CONVERSATION_UNLOADED) {
@@ -5383,6 +5876,28 @@ export function reducer(
     };
   }
 
+  if (action.type === MARK_READ) {
+    const { conversationId } = action.payload;
+    const existingConversation = state.messagesByConversation[conversationId];
+
+    // We don't keep track of messages unless their conversation is loaded...
+    if (!existingConversation) {
+      return state;
+    }
+
+    return {
+      ...state,
+      messagesByConversation: {
+        ...state.messagesByConversation,
+        [conversationId]: {
+          ...existingConversation,
+          messageChangeCounter:
+            (existingConversation.messageChangeCounter || 0) + 1,
+        },
+      },
+    };
+  }
+
   if (action.type === MESSAGE_CHANGED) {
     const { id, conversationId, data } = action.payload;
     const existingConversation = state.messagesByConversation[conversationId];
@@ -5391,7 +5906,7 @@ export function reducer(
     if (!existingConversation) {
       return maybeUpdateSelectedMessageForDetails(
         { messageId: id, targetedMessageForDetails: data },
-        state
+        dropPreloadData(state)
       );
     }
 
@@ -5400,20 +5915,18 @@ export function reducer(
     if (!existingMessage) {
       return maybeUpdateSelectedMessageForDetails(
         { messageId: id, targetedMessageForDetails: data },
-        state
+        dropPreloadData(state)
       );
     }
 
     const conversationAttrs = state.conversationLookup[conversationId];
     const isGroupStoryReply = isGroup(conversationAttrs) && data.storyId;
     if (isGroupStoryReply) {
-      return state;
+      return dropPreloadData(state);
     }
 
     const hasNewEdit =
       existingMessage.editHistory?.length !== data.editHistory?.length ? 1 : 0;
-    const toIncrement = data.reactions?.length || hasNewEdit;
-
     const updatedMessage = {
       ...data,
       displayLimit: existingMessage.displayLimit,
@@ -5430,14 +5943,7 @@ export function reducer(
         },
         state
       ),
-      messagesByConversation: {
-        ...state.messagesByConversation,
-        [conversationId]: {
-          ...existingConversation,
-          messageChangeCounter:
-            (existingConversation.messageChangeCounter || 0) + toIncrement,
-        },
-      },
+      preloadData: undefined,
       messagesLookup: {
         ...state.messagesLookup,
         [id]: updatedMessage,
@@ -5448,7 +5954,7 @@ export function reducer(
   if (action.type === MESSAGE_EXPIRED) {
     return maybeUpdateSelectedMessageForDetails(
       { messageId: action.payload.id, targetedMessageForDetails: undefined },
-      state
+      dropPreloadData(state)
     );
   }
 
@@ -5510,74 +6016,28 @@ export function reducer(
   }
 
   if (action.type === 'MESSAGES_RESET') {
-    const {
-      conversationId,
-      messages,
-      metrics,
-      scrollToMessageId,
-      unboundedFetch,
-    } = action.payload;
-    const { messagesByConversation, messagesLookup } = state;
-
-    const existingConversation = messagesByConversation[conversationId];
-
-    const lookup = fromPairs(messages.map(message => [message.id, message]));
-    const sorted = orderBy(
-      values(lookup),
-      ['received_at', 'sent_at'],
-      ['ASC', 'ASC']
-    );
-
-    let { newest, oldest } = metrics;
-
-    // If our metrics are a little out of date, we'll fix them up
-    if (sorted.length > 0) {
-      const first = sorted[0];
-      if (first && (!oldest || first.received_at <= oldest.received_at)) {
-        oldest = pick(first, ['id', 'received_at', 'sent_at']);
-      }
-
-      const last = sorted[sorted.length - 1];
-      if (
-        last &&
-        (!newest || unboundedFetch || last.received_at >= newest.received_at)
-      ) {
-        newest = pick(last, ['id', 'received_at', 'sent_at']);
-      }
-    }
-
-    const messageIds = sorted.map(message => message.id);
-
+    return updateMessageLookup(state, action.payload);
+  }
+  if (action.type === 'ADD_PRELOAD_DATA') {
     return {
       ...state,
-      ...(state.selectedConversationId === conversationId
-        ? {
-            targetedMessage: scrollToMessageId,
-            targetedMessageCounter: state.targetedMessageCounter + 1,
-            targetedMessageSource: TargetedMessageSource.Reset,
-          }
-        : {}),
-      messagesLookup: {
-        ...messagesLookup,
-        ...lookup,
-      },
-      messagesByConversation: {
-        ...messagesByConversation,
-        [conversationId]: {
-          messageChangeCounter: 0,
-          scrollToMessageId,
-          scrollToMessageCounter: existingConversation
-            ? existingConversation.scrollToMessageCounter + 1
-            : 0,
-          messageIds,
-          metrics: {
-            ...metrics,
-            newest,
-            oldest,
-          },
-        },
-      },
+      preloadData: action.payload,
     };
+  }
+  if (action.type === 'CONSUME_PRELOAD_DATA') {
+    const { preloadData, selectedConversationId } = state;
+    const { conversationId } = action.payload;
+    if (!preloadData) {
+      return state;
+    }
+    if (
+      preloadData.conversationId !== conversationId ||
+      selectedConversationId !== conversationId
+    ) {
+      return dropPreloadData(state);
+    }
+
+    return updateMessageLookup(state, preloadData);
   }
   if (action.type === 'SET_MESSAGE_LOADING_STATE') {
     const { payload } = action;
@@ -5672,7 +6132,7 @@ export function reducer(
     if (!existingConversation) {
       return maybeUpdateSelectedMessageForDetails(
         { messageId: id, targetedMessageForDetails: undefined },
-        state
+        dropPreloadData(state)
       );
     }
 
@@ -5721,6 +6181,7 @@ export function reducer(
         { messageId: id, targetedMessageForDetails: undefined },
         state
       ),
+      preloadData: undefined,
       messagesLookup: omit(messagesLookup, id),
       messagesByConversation: {
         [conversationId]: {
@@ -5807,19 +6268,20 @@ export function reducer(
   if (action.type === 'MESSAGES_ADDED') {
     const { conversationId, isActive, isJustSent, isNewMessage, messages } =
       action.payload;
-    const { messagesByConversation, messagesLookup } = state;
-
-    const existingConversation = messagesByConversation[conversationId];
-    if (!existingConversation) {
-      return state;
-    }
-
-    let { newest, oldest, oldestUnseen, totalUnseen } =
-      existingConversation.metrics;
 
     if (messages.length < 1) {
       return state;
     }
+
+    const { messagesByConversation, messagesLookup } = state;
+
+    const existingConversation = messagesByConversation[conversationId];
+    if (!existingConversation) {
+      return dropPreloadData(state);
+    }
+
+    let { newest, oldest, oldestUnseen, totalUnseen } =
+      existingConversation.metrics;
 
     const lookup = fromPairs(
       existingConversation.messageIds.map(id => [id, messagesLookup[id]])
@@ -5859,7 +6321,7 @@ export function reducer(
           );
         }
 
-        return state;
+        return dropPreloadData(state);
       }
     }
 
@@ -5904,6 +6366,7 @@ export function reducer(
 
     return {
       ...state,
+      preloadData: undefined,
       messagesLookup: {
         ...messagesLookup,
         ...lookup,
@@ -5974,6 +6437,10 @@ export function reducer(
 
     const nextState = {
       ...state,
+      preloadData:
+        state.preloadData?.conversationId === conversationId
+          ? state.preloadData
+          : undefined,
       hasContactSpoofingReview: false,
       selectedConversationId: conversationId,
       targetedMessage: messageId,
@@ -6115,7 +6582,7 @@ export function reducer(
         ...conversationLookup,
         [id]: data,
       },
-      ...updateConversationLookups(data, undefined, state),
+      ...updateConversationLookups([data], undefined, state),
     };
   }
 
@@ -6576,7 +7043,7 @@ export function reducer(
 
       Object.assign(
         nextState,
-        updateConversationLookups(added, existing, nextState),
+        updateConversationLookups([added], [existing], nextState),
         {
           conversationLookup: {
             ...nextState.conversationLookup,
@@ -6612,7 +7079,7 @@ export function reducer(
         ...conversationLookup,
         [conversationId]: changed,
       },
-      ...updateConversationLookups(changed, existing, state),
+      ...updateConversationLookups([changed], [existing], state),
     };
   }
 
@@ -6640,7 +7107,7 @@ export function reducer(
 
       Object.assign(
         nextState,
-        updateConversationLookups(changed, existing, nextState),
+        updateConversationLookups([changed], [existing], nextState),
         {
           conversationLookup: {
             ...nextState.conversationLookup,
@@ -6673,7 +7140,7 @@ export function reducer(
         ...conversationLookup,
         [conversationId]: changed,
       },
-      ...updateConversationLookups(changed, conversation, state),
+      ...updateConversationLookups([changed], [conversation], state),
     };
   }
 

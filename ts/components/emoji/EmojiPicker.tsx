@@ -76,7 +76,7 @@ const categories = [
   'flag',
 ] as const;
 
-type Category = typeof categories[number];
+type Category = (typeof categories)[number];
 
 export const EmojiPicker = React.memo(
   React.forwardRef<HTMLDivElement, Props>(
@@ -405,6 +405,7 @@ export const EmojiPicker = React.memo(
         <FocusTrap
           focusTrapOptions={{
             allowOutsideClick: true,
+            returnFocusOnDeactivate: false,
           }}
         >
           <div className="module-emoji-picker" ref={ref} style={style}>

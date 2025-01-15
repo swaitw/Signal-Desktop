@@ -15,6 +15,7 @@ import {
   SenderKeyDistributionMessage,
 } from '@signalapp/libsignal-client';
 
+import { DataWriter } from '../sql/Client';
 import type { ConversationModel } from '../models/conversations';
 import { GLOBAL_ZONE } from '../SignalProtocolStore';
 import { assertDev, strictAssert } from '../util/assert';
@@ -35,8 +36,6 @@ import {
 import type {
   ChallengeType,
   GetGroupLogOptionsType,
-  GetProfileOptionsType,
-  GetProfileUnauthOptionsType,
   GroupCredentialsType,
   GroupLogResponseType,
   ProxiedRequestOptionsType,
@@ -94,19 +93,30 @@ import {
   AdhocCallStatus,
   DirectCallStatus,
   GroupCallStatus,
+  CallMode,
 } from '../types/CallDisposition';
 import {
   getBytesForPeerId,
+  getCallIdForProto,
   getProtoForCallHistory,
 } from '../util/callDisposition';
-import { CallMode } from '../types/Calling';
 import { MAX_MESSAGE_COUNT } from '../util/deleteForMe.types';
+import type { GroupSendToken } from '../types/GroupSendEndorsements';
+
+export type SendIdentifierData =
+  | {
+      accessKey: string;
+      senderCertificate: SerializedCertificateType | null;
+      groupSendToken: null;
+    }
+  | {
+      accessKey: null;
+      senderCertificate: SerializedCertificateType | null;
+      groupSendToken: GroupSendToken;
+    };
 
 export type SendMetadataType = {
-  [serviceId: ServiceIdString]: {
-    accessKey: string;
-    senderCertificate?: SerializedCertificateType;
-  };
+  [serviceId: ServiceIdString]: SendIdentifierData;
 };
 
 export type SendOptionsType = {
@@ -187,6 +197,7 @@ export type MessageOptionsType = {
   bodyRanges?: ReadonlyArray<RawBodyRange>;
   contact?: ReadonlyArray<EmbeddedContactWithUploadedAvatar>;
   expireTimer?: DurationInSeconds;
+  expireTimerVersion: number | undefined;
   flags?: number;
   group?: {
     id: string;
@@ -237,6 +248,8 @@ class Message {
 
   expireTimer?: DurationInSeconds;
 
+  expireTimerVersion?: number;
+
   flags?: number;
 
   group?: {
@@ -276,6 +289,7 @@ class Message {
     this.bodyRanges = options.bodyRanges;
     this.contact = options.contact;
     this.expireTimer = options.expireTimer;
+    this.expireTimerVersion = options.expireTimerVersion;
     this.flags = options.flags;
     this.group = options.group;
     this.groupV2 = options.groupV2;
@@ -430,7 +444,7 @@ class Message {
               prefix: contact.name.prefix,
               suffix: contact.name.suffix,
               middleName: contact.name.middleName,
-              displayName: contact.name.displayName,
+              nickname: contact.name.nickname,
             };
             contactProto.name = new Proto.DataMessage.Contact.Name(nameProto);
           }
@@ -532,6 +546,9 @@ class Message {
     }
     if (this.expireTimer) {
       proto.expireTimer = this.expireTimer;
+    }
+    if (this.expireTimerVersion) {
+      proto.expireTimerVersion = this.expireTimerVersion;
     }
     if (this.profileKey) {
       proto.profileKey = this.profileKey;
@@ -929,6 +946,7 @@ export default class MessageSender {
       contact,
       deletedForEveryoneTimestamp,
       expireTimer,
+      expireTimerVersion: undefined,
       flags,
       groupCallUpdate,
       groupV2,
@@ -1162,6 +1180,7 @@ export default class MessageSender {
     contentHint,
     deletedForEveryoneTimestamp,
     expireTimer,
+    expireTimerVersion,
     groupId,
     serviceId,
     messageText,
@@ -1184,6 +1203,7 @@ export default class MessageSender {
     contentHint: number;
     deletedForEveryoneTimestamp: number | undefined;
     expireTimer: DurationInSeconds | undefined;
+    expireTimerVersion: number | undefined;
     groupId: string | undefined;
     serviceId: ServiceIdString;
     messageText: string | undefined;
@@ -1208,6 +1228,7 @@ export default class MessageSender {
         contact,
         deletedForEveryoneTimestamp,
         expireTimer,
+        expireTimerVersion,
         preview,
         profileKey,
         quote,
@@ -1600,7 +1621,7 @@ export default class MessageSender {
       type: Proto.SyncMessage.CallLogEvent.Type.CLEAR,
       timestamp: Long.fromNumber(latestCall.timestamp),
       peerId: getBytesForPeerId(latestCall),
-      callId: Long.fromString(latestCall.callId),
+      callId: getCallIdForProto(latestCall),
     });
 
     const syncMessage = MessageSender.createSyncMessage();
@@ -1946,7 +1967,7 @@ export default class MessageSender {
       options?: Readonly<SendOptionsType>;
     }>
   ): Promise<CallbackResultType> {
-    return this.sendReceiptMessage({
+    return this.#sendReceiptMessage({
       ...options,
       type: Proto.ReceiptMessage.Type.DELIVERY,
     });
@@ -1960,7 +1981,7 @@ export default class MessageSender {
       options?: Readonly<SendOptionsType>;
     }>
   ): Promise<CallbackResultType> {
-    return this.sendReceiptMessage({
+    return this.#sendReceiptMessage({
       ...options,
       type: Proto.ReceiptMessage.Type.READ,
     });
@@ -1974,13 +1995,13 @@ export default class MessageSender {
       options?: Readonly<SendOptionsType>;
     }>
   ): Promise<CallbackResultType> {
-    return this.sendReceiptMessage({
+    return this.#sendReceiptMessage({
       ...options,
       type: Proto.ReceiptMessage.Type.VIEWED,
     });
   }
 
-  private async sendReceiptMessage({
+  async #sendReceiptMessage({
     senderAci,
     timestamps,
     type,
@@ -2091,7 +2112,7 @@ export default class MessageSender {
       }
 
       if (initialSavePromise === undefined) {
-        initialSavePromise = window.Signal.Data.insertSentProto(
+        initialSavePromise = DataWriter.insertSentProto(
           {
             contentHint,
             proto,
@@ -2107,7 +2128,7 @@ export default class MessageSender {
         await initialSavePromise;
       } else {
         const id = await initialSavePromise;
-        await window.Signal.Data.insertProtoRecipients({
+        await DataWriter.insertProtoRecipients({
           id,
           recipientServiceId,
           deviceIds,
@@ -2307,17 +2328,6 @@ export default class MessageSender {
 
   // Note: instead of updating these functions, or adding new ones, remove these and go
   //   directly to window.textsecure.messaging.server.<function>
-
-  async getProfile(
-    serviceId: ServiceIdString,
-    options: GetProfileOptionsType | GetProfileUnauthOptionsType
-  ): ReturnType<WebAPIType['getProfile']> {
-    if (options.accessKey !== undefined) {
-      return this.server.getProfileUnauth(serviceId, options);
-    }
-
-    return this.server.getProfile(serviceId, options);
-  }
 
   async getAvatar(path: string): Promise<ReturnType<WebAPIType['getAvatar']>> {
     return this.server.getAvatar(path);

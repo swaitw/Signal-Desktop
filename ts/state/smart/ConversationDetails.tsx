@@ -128,7 +128,7 @@ export const SmartConversationDetails = memo(function SmartConversationDetails({
     toggleEditNicknameAndNoteModal,
     toggleSafetyNumberModal,
   } = useGlobalModalActions();
-  const { showLightboxWithMedia } = useLightboxActions();
+  const { showLightbox } = useLightboxActions();
 
   const conversation = conversationSelector(conversationId);
   assertDev(
@@ -154,7 +154,8 @@ export const SmartConversationDetails = memo(function SmartConversationDetails({
     conversation,
     allComposableConversations
   );
-  const hasActiveCall = activeCall != null;
+  const hasActiveCall =
+    activeCall != null && activeCall.conversationId !== conversationId;
   const hasGroupLink =
     conversation.groupLink != null &&
     conversation.accessControlAddFromInviteLink !== ACCESS_ENUM.UNSATISFIABLE;
@@ -214,7 +215,7 @@ export const SmartConversationDetails = memo(function SmartConversationDetails({
       setMuteExpiration={setMuteExpiration}
       showContactModal={showContactModal}
       showConversation={showConversation}
-      showLightboxWithMedia={showLightboxWithMedia}
+      showLightbox={showLightbox}
       theme={theme}
       toggleAboutContactModal={toggleAboutContactModal}
       toggleAddUserToAnotherGroupModal={toggleAddUserToAnotherGroupModal}

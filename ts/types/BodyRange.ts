@@ -84,7 +84,7 @@ export namespace BodyRange {
     return ('url' as const) in node;
   }
   export function isDisplayOnly<
-    T extends Mention | Link | Formatting | DisplayOnly
+    T extends Mention | Link | Formatting | DisplayOnly,
   >(node: T): node is T & DisplayOnly {
     // satisfies keyof DisplayOnly
     return ('displayStyle' as const) in node;
@@ -413,7 +413,7 @@ function rangeToPartialNode(
     if (range.style === BodyRange.Style.NONE) {
       return {};
     }
-    throw missingCaseError(range.style);
+    return {};
   }
   if (BodyRange.isLink(range)) {
     return {

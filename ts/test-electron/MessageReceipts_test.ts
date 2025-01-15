@@ -1,11 +1,12 @@
 // Copyright 2023 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import uuid from 'uuid';
+import { v4 as uuid } from 'uuid';
 import { assert } from 'chai';
 
 import { type AciString, generateAci } from '../types/ServiceId';
 import type { MessageAttributesType } from '../model-types';
+import { DataReader, DataWriter } from '../sql/Client';
 import { SendStatus } from '../messages/MessageSendState';
 import type {
   MessageReceiptAttributesType,
@@ -16,6 +17,7 @@ import {
   messageReceiptTypeSchema,
 } from '../messageModifiers/MessageReceipts';
 import { ReadStatus } from '../messages/MessageReadStatus';
+import { postSaveUpdates } from '../util/cleanup';
 
 describe('MessageReceipts', () => {
   let ourAci: AciString;
@@ -77,9 +79,10 @@ describe('MessageReceipts', () => {
       },
     };
 
-    await window.Signal.Data.saveMessage(messageAttributes, {
+    await DataWriter.saveMessage(messageAttributes, {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
 
     await Promise.all([
@@ -97,7 +100,7 @@ describe('MessageReceipts', () => {
       ),
     ]);
 
-    const messageFromDatabase = await window.Signal.Data.getMessageById(id);
+    const messageFromDatabase = await DataReader.getMessageById(id);
     const savedSendState = messageFromDatabase?.sendStateByConversationId;
 
     assert.equal(savedSendState?.aaaa.status, SendStatus.Read, 'aaaa');
@@ -154,11 +157,12 @@ describe('MessageReceipts', () => {
       ],
     };
 
-    await window.Signal.Data.saveMessage(messageAttributes, {
+    await DataWriter.saveMessage(messageAttributes, {
       forceSave: true,
       ourAci,
+      postSaveUpdates,
     });
-    await window.Signal.Data.saveEditedMessage(messageAttributes, ourAci, {
+    await DataWriter.saveEditedMessage(messageAttributes, ourAci, {
       conversationId: messageAttributes.conversationId,
       messageId: messageAttributes.id,
       readStatus: ReadStatus.Read,
@@ -211,7 +215,7 @@ describe('MessageReceipts', () => {
       ),
     ]);
 
-    const messageFromDatabase = await window.Signal.Data.getMessageById(id);
+    const messageFromDatabase = await DataReader.getMessageById(id);
     const rootSendState = messageFromDatabase?.sendStateByConversationId;
 
     assert.deepEqual(

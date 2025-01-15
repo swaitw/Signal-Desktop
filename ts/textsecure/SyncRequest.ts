@@ -15,7 +15,7 @@ import { singleProtoJobQueue } from '../jobs/singleProtoJobQueue';
 import * as Errors from '../types/errors';
 
 class SyncRequestInner extends EventTarget {
-  private started = false;
+  #started = false;
 
   contactSync?: boolean;
 
@@ -25,7 +25,10 @@ class SyncRequestInner extends EventTarget {
 
   timeoutMillis: number;
 
-  constructor(private receiver: MessageReceiver, timeoutMillis?: number) {
+  constructor(
+    private receiver: MessageReceiver,
+    timeoutMillis?: number
+  ) {
     super();
 
     if (!(receiver instanceof MessageReceiver)) {
@@ -41,14 +44,14 @@ class SyncRequestInner extends EventTarget {
   }
 
   async start(): Promise<void> {
-    if (this.started) {
+    if (this.#started) {
       assertDev(
         false,
         'SyncRequestInner: started more than once. Doing nothing'
       );
       return;
     }
-    this.started = true;
+    this.#started = true;
 
     if (window.ConversationController.areWePrimaryDevice()) {
       log.warn('SyncRequest.start: We are primary device; returning early');
@@ -105,7 +108,7 @@ class SyncRequestInner extends EventTarget {
 }
 
 export default class SyncRequest {
-  private inner: SyncRequestInner;
+  #inner: SyncRequestInner;
 
   addEventListener: (
     name: 'success' | 'timeout',
@@ -119,12 +122,12 @@ export default class SyncRequest {
 
   constructor(receiver: MessageReceiver, timeoutMillis?: number) {
     const inner = new SyncRequestInner(receiver, timeoutMillis);
-    this.inner = inner;
+    this.#inner = inner;
     this.addEventListener = inner.addEventListener.bind(inner);
     this.removeEventListener = inner.removeEventListener.bind(inner);
   }
 
   start(): void {
-    void this.inner.start();
+    void this.#inner.start();
   }
 }

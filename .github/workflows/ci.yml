@@ -109,6 +109,15 @@ jobs:
       env:
         DISABLE_INSPECT_FUSE: on
         SIGN_MACOS_SCRIPT: noop.sh
+        ARTIFACTS_DIR: artifacts/macos
+    - name: Upload installer size
+      if: ${{ github.repository == 'signalapp/Signal-Desktop-Private' && github.ref == 'refs/heads/main' }}
+      run: |
+        node ts/scripts/dd-installer-size.js macos-arm64
+        node ts/scripts/dd-installer-size.js macos-x64
+        node ts/scripts/dd-installer-size.js macos-universal
+      env:
+        DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
     - name: Rebuild native modules for x64
       run: npm run electron:install-app-deps
     - run: npm run test-release
@@ -124,7 +133,7 @@ jobs:
 
   linux:
     needs: lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-8-cores
     timeout-minutes: 30
 
     steps:
@@ -135,7 +144,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version-file: '.nvmrc'
-    - run: sudo apt-get install xvfb
+    - run: sudo apt-get install xvfb libpulse0
 
     - run: npm install -g npm@10.2.5
 
@@ -157,6 +166,10 @@ jobs:
 
     - name: Create bundle
       run: npm run build:esbuild:prod
+    - name: Create preload cache
+      run: xvfb-run --auto-servernum npm run build:preload-cache
+      env:
+        ARTIFACTS_DIR: artifacts/linux
 
     - name: Build with packaging .deb file
       run: npm run build:release -- --publish=never
@@ -169,13 +182,28 @@ jobs:
       env:
         DISABLE_INSPECT_FUSE: on
 
+    - name: Upload installer size
+      if: ${{ github.repository == 'signalapp/Signal-Desktop-Private' && github.ref == 'refs/heads/main' }}
+      run: node ts/scripts/dd-installer-size.js linux
+      env:
+        DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+
     - run: xvfb-run --auto-servernum npm run test-node
+
+    - name: Clone backup integration tests
+      uses: actions/checkout@v4
+      with:
+        repository: 'signalapp/Signal-Message-Backup-Tests'
+        ref: 'afa66e77fe2b437024ec0914cd14c02c95e7cbed'
+        path: 'backup-integration-tests'
+
     - run: xvfb-run --auto-servernum npm run test-electron
       timeout-minutes: 5
       env:
         ARTIFACTS_DIR: artifacts/linux
         LANG: en_US
         LANGUAGE: en_US
+        BACKUP_INTEGRATION_DIR: 'backup-integration-tests/test-cases'
     - run: xvfb-run --auto-servernum npm run test-release
       env:
         NODE_ENV: production
@@ -235,6 +263,10 @@ jobs:
 
     - name: Create bundle
       run: npm run build:esbuild:prod
+    - name: Create preload cache
+      run: npm run build:preload-cache
+      env:
+        ARTIFACTS_DIR: artifacts/win
 
     - name: Build with NSIS
       run: npm run build:release
@@ -246,6 +278,12 @@ jobs:
       if: github.ref != 'refs/heads/main'
       env:
         DISABLE_INSPECT_FUSE: on
+
+    - name: Upload installer size
+      if: ${{ github.repository == 'signalapp/Signal-Desktop-Private' && github.ref == 'refs/heads/main' }}
+      run: node ts/scripts/dd-installer-size.js windows
+      env:
+        DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
 
     - run: npm run test-electron
       env:
@@ -320,7 +358,7 @@ jobs:
       run: npm install -g npm@10.2.5
 
     - name: Install xvfb
-      run: sudo apt-get install xvfb
+      run: sudo apt-get install xvfb libpulse0
 
     - name: Cache Desktop node_modules
       id: cache-desktop-modules
@@ -339,6 +377,10 @@ jobs:
       run: npm run generate
     - name: Bundle
       run: npm run build:esbuild:prod
+    - name: Create preload cache
+      run: xvfb-run --auto-servernum npm run build:preload-cache
+      env:
+        ARTIFACTS_DIR: artifacts/linux
 
     - name: Run mock server tests
       run: |

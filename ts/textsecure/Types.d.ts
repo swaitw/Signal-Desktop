@@ -119,6 +119,9 @@ export type ProcessedAttachment = {
   cdnNumber?: number;
   textAttachment?: Omit<TextAttachmentType, 'preview'>;
   backupLocator?: AttachmentType['backupLocator'];
+  downloadPath?: string;
+  incrementalMac?: string;
+  chunkSize?: number;
 };
 
 export type ProcessedGroupV2Context = {
@@ -203,6 +206,7 @@ export type ProcessedDataMessage = {
   groupV2?: ProcessedGroupV2Context;
   flags: number;
   expireTimer: DurationInSeconds;
+  expireTimerVersion: number;
   profileKey?: string;
   timestamp: number;
   payment?: AnyPaymentEvent;

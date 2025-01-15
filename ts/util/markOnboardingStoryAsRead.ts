@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import * as log from '../logging/log';
-import { __DEPRECATED$getMessageById } from '../messages/getMessageById';
+import { DataWriter } from '../sql/Client';
+import { getMessageById } from '../messages/getMessageById';
 import { isNotNil } from './isNotNil';
 import { DurationInSeconds } from './durations';
 import { markViewed } from '../services/MessageUpdater';
 import { storageServiceUploadJob } from '../services/storage';
+import { postSaveUpdates } from './cleanup';
 
 export async function markOnboardingStoryAsRead(): Promise<boolean> {
   const existingOnboardingStoryMessageIds = window.storage.get(
@@ -19,7 +21,7 @@ export async function markOnboardingStoryAsRead(): Promise<boolean> {
   }
 
   const messages = await Promise.all(
-    existingOnboardingStoryMessageIds.map(__DEPRECATED$getMessageById)
+    existingOnboardingStoryMessageIds.map(id => getMessageById(id))
   );
 
   const storyReadDate = Date.now();
@@ -44,13 +46,14 @@ export async function markOnboardingStoryAsRead(): Promise<boolean> {
     `markOnboardingStoryAsRead: marked ${messageAttributes.length} viewed`
   );
 
-  await window.Signal.Data.saveMessages(messageAttributes, {
+  await DataWriter.saveMessages(messageAttributes, {
     ourAci: window.textsecure.storage.user.getCheckedAci(),
+    postSaveUpdates,
   });
 
   await window.storage.put('hasViewedOnboardingStory', true);
 
-  storageServiceUploadJob();
+  storageServiceUploadJob({ reason: 'markOnboardingStoryAsRead' });
 
   return true;
 }
