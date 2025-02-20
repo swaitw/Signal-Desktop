@@ -30,7 +30,10 @@ import { strictAssert } from '../util/assert';
 import type { SignalService as Proto } from '../protobuf';
 import { isMoreRecentThan } from '../util/timestamp';
 import { DAY } from '../util/durations';
+import { getMessageQueueTime } from '../util/getMessageQueueTime';
 import { getLocalAttachmentUrl } from '../util/getLocalAttachmentUrl';
+import type { ReencryptionInfo } from '../AttachmentCrypto';
+import { redactGenericText } from '../util/privacy';
 
 const MAX_WIDTH = 300;
 const MAX_HEIGHT = MAX_WIDTH * 1.5;
@@ -63,7 +66,6 @@ export type AttachmentType = {
   /** For messages not already on disk, this will be a data url */
   url?: string;
   size: number;
-  fileSize?: string;
   pending?: boolean;
   width?: number;
   height?: number;
@@ -78,14 +80,16 @@ export type AttachmentType = {
   cdnNumber?: number;
   cdnId?: string;
   cdnKey?: string;
+  downloadPath?: string;
   key?: string;
   iv?: string;
   data?: Uint8Array;
   textAttachment?: TextAttachmentType;
   wasTooBig?: boolean;
 
+  totalDownloaded?: number;
   incrementalMac?: string;
-  incrementalMacChunkSize?: number;
+  chunkSize?: number;
 
   backupLocator?: {
     mediaName: string;
@@ -105,7 +109,15 @@ export type AttachmentType = {
 
   /** Legacy field, used long ago for migrating attachments to disk. */
   schemaVersion?: number;
-};
+} & (
+  | {
+      isReencryptableToSameDigest?: true;
+    }
+  | {
+      isReencryptableToSameDigest: false;
+      reencryptionInfo?: ReencryptionInfo;
+    }
+);
 
 export type LocalAttachmentV2Type = Readonly<{
   version: 2;
@@ -120,6 +132,7 @@ export type AddressableAttachmentType = Readonly<{
   path: string;
   localKey?: string;
   size?: number;
+  contentType: MIME.MIMEType;
 
   // In-memory data, for outgoing attachments that are not saved to disk.
   data?: Uint8Array;
@@ -141,6 +154,7 @@ export type UploadedAttachmentType = Proto.IAttachmentPointer &
     digest: Uint8Array;
     contentType: string;
     plaintextHash: string;
+    isReencryptableToSameDigest: true;
   }>;
 
 export type AttachmentWithHydratedData = AttachmentType & {
@@ -386,9 +400,13 @@ export function loadData(
   };
 }
 
-export function deleteData(
-  deleteOnDisk: (path: string) => Promise<void>
-): (attachment?: AttachmentType) => Promise<void> {
+export function deleteData({
+  deleteOnDisk,
+  deleteDownloadOnDisk,
+}: {
+  deleteOnDisk: (path: string) => Promise<void>;
+  deleteDownloadOnDisk: (path: string) => Promise<void>;
+}): (attachment?: AttachmentType) => Promise<void> {
   if (!isFunction(deleteOnDisk)) {
     throw new TypeError('deleteData: deleteOnDisk must be a function');
   }
@@ -398,10 +416,15 @@ export function deleteData(
       throw new TypeError('deleteData: attachment is not valid');
     }
 
-    const { path, thumbnail, screenshot, thumbnailFromBackup } = attachment;
+    const { path, downloadPath, thumbnail, screenshot, thumbnailFromBackup } =
+      attachment;
 
     if (isString(path)) {
       await deleteOnDisk(path);
+    }
+
+    if (isString(downloadPath)) {
+      await deleteDownloadOnDisk(downloadPath);
     }
 
     if (thumbnail && isString(thumbnail.path)) {
@@ -632,6 +655,20 @@ export function isPlayed(
   return readStatus === ReadStatus.Viewed;
 }
 
+export function canRenderAudio(
+  attachments?: ReadonlyArray<AttachmentType>
+): boolean {
+  const firstAttachment = attachments && attachments[0];
+  if (!firstAttachment) {
+    return false;
+  }
+
+  return (
+    isAudio(attachments) &&
+    (isDownloaded(firstAttachment) || isDownloadable(firstAttachment))
+  );
+}
+
 export function canDisplayImage(
   attachments?: ReadonlyArray<AttachmentType>
 ): boolean {
@@ -740,18 +777,44 @@ export function isGIF(attachments?: ReadonlyArray<AttachmentType>): boolean {
   return hasFlag && isVideoAttachment(attachment);
 }
 
-function resolveNestedAttachment(
-  attachment?: AttachmentType
-): AttachmentType | undefined {
+function resolveNestedAttachment<
+  T extends Pick<AttachmentType, 'textAttachment'>,
+>(attachment?: T): T | AttachmentType | undefined {
   if (attachment?.textAttachment?.preview?.image) {
     return attachment.textAttachment.preview.image;
   }
   return attachment;
 }
 
-export function isDownloaded(attachment?: AttachmentType): boolean {
+export function isIncremental(
+  attachment: Pick<AttachmentForUIType, 'incrementalMac' | 'chunkSize'>
+): boolean {
+  return Boolean(attachment.incrementalMac && attachment.chunkSize);
+}
+
+export function isDownloaded(
+  attachment?: Pick<AttachmentType, 'path' | 'textAttachment'>
+): boolean {
   const resolved = resolveNestedAttachment(attachment);
   return Boolean(resolved && (resolved.path || resolved.textAttachment));
+}
+
+export function isReadyToView(
+  attachment?: Pick<
+    AttachmentType,
+    'incrementalMac' | 'chunkSize' | 'path' | 'textAttachment'
+  >
+): boolean {
+  const fullyDownloaded = isDownloaded(attachment);
+  if (fullyDownloaded) {
+    return fullyDownloaded;
+  }
+
+  const resolved = resolveNestedAttachment(attachment);
+  return Boolean(
+    resolved &&
+      (resolved.path || resolved.textAttachment || isIncremental(resolved))
+  );
 }
 
 export function hasNotResolved(attachment?: AttachmentType): boolean {
@@ -959,6 +1022,7 @@ export const save = async ({
   readAttachmentData,
   saveAttachmentToDisk,
   timestamp,
+  baseDir,
 }: {
   attachment: AttachmentType;
   index?: number;
@@ -968,8 +1032,14 @@ export const save = async ({
   saveAttachmentToDisk: (options: {
     data: Uint8Array;
     name: string;
+    baseDir?: string;
   }) => Promise<{ name: string; fullPath: string } | null>;
   timestamp?: number;
+  /**
+   * Base directory for saving the attachment.
+   * If omitted, a dialog will be opened to let the user choose a directory
+   */
+  baseDir?: string;
 }): Promise<string | null> => {
   let data: Uint8Array;
   if (attachment.path) {
@@ -985,6 +1055,7 @@ export const save = async ({
   const result = await saveAttachmentToDisk({
     data,
     name,
+    baseDir,
   });
 
   if (!result) {
@@ -1057,18 +1128,39 @@ export function getAttachmentSignature(attachment: AttachmentType): string {
   return attachment.digest;
 }
 
+export function getAttachmentSignatureSafe(
+  attachment: AttachmentType
+): string | undefined {
+  try {
+    return getAttachmentSignature(attachment);
+  } catch {
+    return undefined;
+  }
+}
+
 type RequiredPropertiesForDecryption = 'key' | 'digest';
-type RequiredPropertiesForReencryption = 'key' | 'digest' | 'iv';
+type RequiredPropertiesForReencryption = 'path' | 'key' | 'digest' | 'iv';
 
 type DecryptableAttachment = WithRequiredProperties<
   AttachmentType,
   RequiredPropertiesForDecryption
 >;
 
-type ReencryptableAttachment = WithRequiredProperties<
+export type AttachmentWithNewReencryptionInfoType = Omit<
   AttachmentType,
-  RequiredPropertiesForReencryption
->;
+  'isReencryptableToSameDigest'
+> & {
+  isReencryptableToSameDigest: false;
+  reencryptionInfo: ReencryptionInfo;
+};
+type AttachmentReencryptableToExistingDigestType = Omit<
+  WithRequiredProperties<AttachmentType, RequiredPropertiesForReencryption>,
+  'isReencryptableToSameDigest'
+> & { isReencryptableToSameDigest: true };
+
+export type ReencryptableAttachment =
+  | AttachmentWithNewReencryptionInfoType
+  | AttachmentReencryptableToExistingDigestType;
 
 export type AttachmentDownloadableFromTransitTier = WithRequiredProperties<
   DecryptableAttachment,
@@ -1085,31 +1177,46 @@ export type LocallySavedAttachment = WithRequiredProperties<
   'path'
 >;
 
-export type AttachmentReadyForBackup = WithRequiredProperties<
-  LocallySavedAttachment,
-  RequiredPropertiesForReencryption
->;
-
 export function isDecryptable(
   attachment: AttachmentType
 ): attachment is DecryptableAttachment {
   return Boolean(attachment.key) && Boolean(attachment.digest);
 }
 
-export function isReencryptableToSameDigest(
+export function hasAllOriginalEncryptionInfo(
   attachment: AttachmentType
-): attachment is ReencryptableAttachment {
+): attachment is WithRequiredProperties<
+  AttachmentType,
+  'iv' | 'key' | 'digest'
+> {
   return (
+    Boolean(attachment.iv) &&
     Boolean(attachment.key) &&
-    Boolean(attachment.digest) &&
-    Boolean(attachment.iv)
+    Boolean(attachment.digest)
   );
 }
 
-const TIME_ON_TRANSIT_TIER = 30 * DAY;
+export function isReencryptableToSameDigest(
+  attachment: AttachmentType
+): attachment is AttachmentReencryptableToExistingDigestType {
+  return (
+    hasAllOriginalEncryptionInfo(attachment) &&
+    Boolean(attachment.isReencryptableToSameDigest)
+  );
+}
+
+export function isReencryptableWithNewEncryptionInfo(
+  attachment: AttachmentType
+): attachment is AttachmentWithNewReencryptionInfoType {
+  return (
+    attachment.isReencryptableToSameDigest === false &&
+    Boolean(attachment.reencryptionInfo)
+  );
+}
+
 // Extend range in case the attachment is actually still there (this function is meant to
 // be optimistic)
-const BUFFERED_TIME_ON_TRANSIT_TIER = TIME_ON_TRANSIT_TIER + 5 * DAY;
+const BUFFER_TIME_ON_TRANSIT_TIER = 5 * DAY;
 
 export function mightStillBeOnTransitTier(
   attachment: Pick<AttachmentType, 'cdnKey' | 'cdnNumber' | 'uploadTimestamp'>
@@ -1127,7 +1234,10 @@ export function mightStillBeOnTransitTier(
   }
 
   if (
-    isMoreRecentThan(attachment.uploadTimestamp, BUFFERED_TIME_ON_TRANSIT_TIER)
+    isMoreRecentThan(
+      attachment.uploadTimestamp,
+      getMessageQueueTime() + BUFFER_TIME_ON_TRANSIT_TIER
+    )
   ) {
     return true;
   }
@@ -1172,8 +1282,22 @@ export function isDownloadable(attachment: AttachmentType): boolean {
   );
 }
 
+export function isPermanentlyUndownloadable(
+  attachment: AttachmentType
+): boolean {
+  return Boolean(!isDownloadable(attachment) && attachment.error);
+}
+
 export function isAttachmentLocallySaved(
   attachment: AttachmentType
 ): attachment is LocallySavedAttachment {
   return Boolean(attachment.path);
+}
+
+export function getAttachmentIdForLogging(attachment: AttachmentType): string {
+  const { digest } = attachment;
+  if (typeof digest === 'string') {
+    return redactGenericText(digest);
+  }
+  return '[MissingDigest]';
 }

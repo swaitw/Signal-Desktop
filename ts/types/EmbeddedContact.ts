@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { omit } from 'lodash';
+import type { ReadonlyDeep } from 'type-fest';
 
 import { SignalService as Proto } from '../protobuf';
-import type { MessageAttributesType } from '../model-types.d';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
 
 import { isNotNil } from '../util/isNotNil';
 import {
   format as formatPhoneNumber,
-  parse as parsePhoneNumber,
+  normalize as normalizePhoneNumber,
 } from './PhoneNumber';
 import type {
   AttachmentType,
@@ -25,9 +26,9 @@ import { getLocalAttachmentUrl } from '../util/getLocalAttachmentUrl';
 
 type GenericEmbeddedContactType<AvatarType> = {
   name?: Name;
-  number?: Array<Phone>;
-  email?: Array<Email>;
-  address?: Array<PostalAddress>;
+  number?: ReadonlyArray<Phone>;
+  email?: ReadonlyArray<Email>;
+  address?: ReadonlyArray<PostalAddress>;
   avatar?: AvatarType;
   organization?: string;
 
@@ -48,7 +49,7 @@ type Name = {
   prefix?: string;
   suffix?: string;
   middleName?: string;
-  displayName?: string;
+  nickname?: string;
 };
 
 export enum ContactFormType {
@@ -147,13 +148,13 @@ export function numberToAddressType(
 }
 
 export function embeddedContactSelector(
-  contact: EmbeddedContactType,
+  contact: ReadonlyDeep<EmbeddedContactType>,
   options: {
     regionCode?: string;
     firstNumber?: string;
     serviceId?: ServiceIdString;
   }
-): EmbeddedContactType {
+): ReadonlyDeep<EmbeddedContactType> {
   const { firstNumber, serviceId, regionCode } = options;
 
   let { avatar } = contact;
@@ -189,15 +190,31 @@ export function embeddedContactSelector(
   };
 }
 
-export function getName(contact: EmbeddedContactType): string | undefined {
-  const { name, organization } = contact;
-  const displayName = (name && name.displayName) || undefined;
+export function getDisplayName({
+  name,
+  organization,
+}: ReadonlyDeep<EmbeddedContactType>): string | undefined {
+  // See https://github.com/signalapp/Signal-iOS-Private/blob/210a46037f12cdc6ad97ac6dceb64fbc43469f67/SignalServiceKit/Messages/Interactions/ContactShare/OWSContactName.swift#L87-L104
+  if (name?.nickname) {
+    return name.nickname;
+  }
+  if (name?.givenName && name?.familyName) {
+    return `${name.givenName} ${name.familyName}`;
+  }
+  if (organization) {
+    return organization;
+  }
+  return undefined;
+}
+
+export function getName(
+  contact: ReadonlyDeep<EmbeddedContactType>
+): string | undefined {
+  const { name } = contact;
   const givenName = (name && name.givenName) || undefined;
   const familyName = (name && name.familyName) || undefined;
-  const backupName =
-    (givenName && familyName && `${givenName} ${familyName}`) || undefined;
 
-  return displayName || organization || backupName || givenName || familyName;
+  return getDisplayName(contact) || givenName || familyName;
 }
 
 export function parseAndWriteAvatar(
@@ -206,15 +223,15 @@ export function parseAndWriteAvatar(
   return async (
     contact: EmbeddedContactType,
     context: {
-      message: MessageAttributesType;
       getRegionCode: () => string | undefined;
       logger: LoggerType;
       writeNewAttachmentData: (
         data: Uint8Array
       ) => Promise<LocalAttachmentV2Type>;
-    }
+    },
+    message: ReadonlyMessageAttributesType
   ): Promise<EmbeddedContactType> => {
-    const { message, getRegionCode, logger } = context;
+    const { getRegionCode, logger } = context;
     const { avatar } = contact;
 
     const contactWithUpdatedAvatar =
@@ -280,7 +297,7 @@ function parseContact(
   return result;
 }
 
-function idForLogging(message: MessageAttributesType): string {
+function idForLogging(message: ReadonlyMessageAttributesType): string {
   return `${message.source}.${message.sourceDevice} ${message.sent_at}`;
 }
 
@@ -289,28 +306,18 @@ export function _validate(
   contact: EmbeddedContactType,
   { messageId }: { messageId: string }
 ): Error | undefined {
-  const { name, number, email, address, organization } = contact;
+  const { organization } = contact;
 
-  if ((!name || !name.displayName) && !organization) {
+  if (!getDisplayName(contact) && !organization) {
     return new Error(
       `Message ${messageId}: Contact had neither 'displayName' nor 'organization'`
-    );
-  }
-
-  if (
-    (!number || !number.length) &&
-    (!email || !email.length) &&
-    (!address || !address.length)
-  ) {
-    return new Error(
-      `Message ${messageId}: Contact had no included numbers, email or addresses`
     );
   }
 
   return undefined;
 }
 
-function parsePhoneItem(
+export function parsePhoneItem(
   item: Phone,
   { regionCode }: { regionCode: string | undefined }
 ): Phone | undefined {
@@ -318,10 +325,14 @@ function parsePhoneItem(
     return undefined;
   }
 
+  const value = regionCode
+    ? normalizePhoneNumber(item.value, { regionCode })
+    : item.value;
+
   return {
     ...item,
     type: item.type || DEFAULT_PHONE_TYPE,
-    value: parsePhoneNumber(item.value, { regionCode }),
+    value: value ?? item.value,
   };
 }
 

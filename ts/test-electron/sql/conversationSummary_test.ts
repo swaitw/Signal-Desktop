@@ -4,18 +4,15 @@
 import { assert } from 'chai';
 import { v4 as generateUuid } from 'uuid';
 
-import dataInterface from '../../sql/Client';
+import { DataReader, DataWriter } from '../../sql/Client';
 import { generateAci } from '../../types/ServiceId';
 import { DurationInSeconds } from '../../util/durations';
 
 import type { MessageAttributesType } from '../../model-types.d';
+import { postSaveUpdates } from '../../util/cleanup';
 
-const {
-  removeAll,
-  _getAllMessages,
-  saveMessages,
-  getConversationMessageStats,
-} = dataInterface;
+const { _getAllMessages, getConversationMessageStats } = DataReader;
+const { removeAll, saveMessages } = DataWriter;
 
 describe('sql/conversationSummary', () => {
   beforeEach(async () => {
@@ -60,6 +57,7 @@ describe('sql/conversationSummary', () => {
       await saveMessages([message1, message2, message3], {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       });
 
       assert.lengthOf(await _getAllMessages(), 3);
@@ -113,6 +111,7 @@ describe('sql/conversationSummary', () => {
       await saveMessages([message1, message2, message3], {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       });
 
       assert.lengthOf(await _getAllMessages(), 3);
@@ -203,6 +202,7 @@ describe('sql/conversationSummary', () => {
         {
           forceSave: true,
           ourAci,
+          postSaveUpdates,
         }
       );
 
@@ -310,6 +310,7 @@ describe('sql/conversationSummary', () => {
         {
           forceSave: true,
           ourAci,
+          postSaveUpdates,
         }
       );
 
@@ -359,6 +360,7 @@ describe('sql/conversationSummary', () => {
       await saveMessages([message1, message2], {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       });
 
       assert.lengthOf(await _getAllMessages(), 2);
@@ -408,6 +410,7 @@ describe('sql/conversationSummary', () => {
       await saveMessages([message1, message2], {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       });
 
       assert.lengthOf(await _getAllMessages(), 2);
@@ -450,6 +453,7 @@ describe('sql/conversationSummary', () => {
       await saveMessages([message1, message2], {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       });
 
       assert.lengthOf(await _getAllMessages(), 2);
@@ -494,6 +498,7 @@ describe('sql/conversationSummary', () => {
       await saveMessages([message1, message2], {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       });
 
       assert.lengthOf(await _getAllMessages(), 2);
@@ -553,6 +558,7 @@ describe('sql/conversationSummary', () => {
       await saveMessages([message1, message2], {
         forceSave: true,
         ourAci,
+        postSaveUpdates,
       });
 
       assert.lengthOf(await _getAllMessages(), 2);

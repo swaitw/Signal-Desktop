@@ -2,17 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
-import type { Database } from '@signalapp/better-sqlite3';
-import SQL from '@signalapp/better-sqlite3';
 import { v4 as generateGuid } from 'uuid';
 
 import {
-  getAllSyncTasksSync,
-  getMostRecentAddressableMessagesSync,
-  removeSyncTaskByIdSync,
-  saveSyncTasksSync,
+  dequeueOldestSyncTasks,
+  removeSyncTaskById,
+  saveSyncTasks,
 } from '../../sql/Server';
-import { insertData, updateToVersion } from './helpers';
+import type { WritableDB, ReadableDB, MessageType } from '../../sql/Interface';
+import { sql, jsonToObject } from '../../sql/util';
+import { insertData, updateToVersion, createDB } from './helpers';
 import { MAX_SYNC_TASK_ATTEMPTS } from '../../util/syncTasks.types';
 import { WEEK } from '../../util/durations';
 
@@ -20,6 +19,27 @@ import type { MessageAttributesType } from '../../model-types';
 import type { SyncTaskType } from '../../util/syncTasks';
 
 /* eslint-disable camelcase */
+
+// Snapshot before: 1270
+export function getMostRecentAddressableMessages(
+  db: ReadableDB,
+  conversationId: string,
+  limit = 5
+): Array<MessageType> {
+  const [query, parameters] = sql`
+    SELECT json FROM messages
+    INDEXED BY messages_by_date_addressable
+    WHERE
+      conversationId IS ${conversationId} AND
+      isAddressableMessage = 1
+    ORDER BY received_at DESC, sent_at DESC
+    LIMIT ${limit};
+  `;
+
+  const rows = db.prepare(query).all(parameters);
+
+  return rows.map(row => jsonToObject(row.json));
+}
 
 function generateMessage(json: MessageAttributesType) {
   const { conversationId, received_at, sent_at, type } = json;
@@ -34,9 +54,9 @@ function generateMessage(json: MessageAttributesType) {
 }
 
 describe('SQL/updateToSchemaVersion1060', () => {
-  let db: Database;
+  let db: WritableDB;
   beforeEach(() => {
-    db = new SQL(':memory:');
+    db = createDB();
     updateToVersion(db, 1060);
   });
 
@@ -117,10 +137,7 @@ describe('SQL/updateToSchemaVersion1060', () => {
           }),
         ]);
 
-        const messages = getMostRecentAddressableMessagesSync(
-          db,
-          conversationId
-        );
+        const messages = getMostRecentAddressableMessages(db, conversationId);
 
         assert.lengthOf(messages, 3);
         assert.deepEqual(messages, [
@@ -151,7 +168,7 @@ describe('SQL/updateToSchemaVersion1060', () => {
         ]);
       });
 
-      it('ensures that index is used for getMostRecentAddressableMessagesSync, with storyId', () => {
+      it('ensures that index is used for getMostRecentAddressableMessages, with storyId', () => {
         const { detail } = db
           .prepare(
             `
@@ -219,25 +236,25 @@ describe('SQL/updateToSchemaVersion1060', () => {
         },
       ];
 
-      saveSyncTasksSync(db, expected);
+      saveSyncTasks(db, expected);
 
-      const actual = getAllSyncTasksSync(db);
-      assert.deepEqual(expected, actual, 'before delete');
+      const actual = dequeueOldestSyncTasks(db, null);
+      assert.deepEqual(expected, actual.tasks, 'before delete');
 
-      removeSyncTaskByIdSync(db, expected[1].id);
+      removeSyncTaskById(db, expected[1].id);
 
-      const actualAfterDelete = getAllSyncTasksSync(db);
+      const actualAfterDelete = dequeueOldestSyncTasks(db, null);
       assert.deepEqual(
         [
           { ...expected[0], attempts: 2 },
           { ...expected[2], attempts: 4 },
         ],
-        actualAfterDelete,
+        actualAfterDelete.tasks,
         'after delete'
       );
     });
 
-    it('getAllSyncTasksSync expired tasks', () => {
+    it('dequeueOldestSyncTasks expired tasks', () => {
       const now = Date.now();
       const twoWeeksAgo = now - WEEK * 2;
       const expected: Array<SyncTaskType> = [
@@ -291,12 +308,12 @@ describe('SQL/updateToSchemaVersion1060', () => {
         },
       ];
 
-      saveSyncTasksSync(db, expected);
+      saveSyncTasks(db, expected);
 
-      const actual = getAllSyncTasksSync(db);
+      const actual = dequeueOldestSyncTasks(db, null);
 
-      assert.lengthOf(actual, 3);
-      assert.deepEqual([expected[1], expected[2], expected[3]], actual);
+      assert.lengthOf(actual.tasks, 3);
+      assert.deepEqual([expected[1], expected[2], expected[3]], actual.tasks);
     });
   });
 });

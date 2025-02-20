@@ -2,27 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
-import type { Database } from '@signalapp/better-sqlite3';
-import SQL from '@signalapp/better-sqlite3';
 import { v4 as generateGuid } from 'uuid';
 
-import {
-  _storyIdPredicate,
-  getJobsInQueueSync,
-  insertJobSync,
-} from '../../sql/Server';
+import { _storyIdPredicate, getJobsInQueue, insertJob } from '../../sql/Server';
+import type { WritableDB } from '../../sql/Interface';
 import { ReadStatus } from '../../messages/MessageReadStatus';
 import { SeenStatus } from '../../MessageSeenStatus';
 import { objectToJSON, sql, sqlJoin } from '../../sql/util';
 import { BodyRange } from '../../types/BodyRange';
 import type { AciString } from '../../types/ServiceId';
 import { generateAci } from '../../types/ServiceId';
-import { updateToVersion } from './helpers';
+import { createDB, updateToVersion } from './helpers';
 
 const OUR_UUID = generateGuid();
 
 describe('SQL migrations test', () => {
-  let db: Database;
+  let db: WritableDB;
 
   const addOurUuid = () => {
     const value = {
@@ -71,7 +66,7 @@ describe('SQL migrations test', () => {
   };
 
   beforeEach(() => {
-    db = new SQL(':memory:');
+    db = createDB();
   });
 
   afterEach(() => {
@@ -1356,10 +1351,8 @@ describe('SQL migrations test', () => {
       db.exec(
         `
         INSERT INTO messages
-        (id, json)
-        VALUES ('${MESSAGE_ID_1}', '${JSON.stringify({
-          conversationId: CONVERSATION_ID_1,
-        })}')
+        (id, conversationId)
+        VALUES ('${MESSAGE_ID_1}', '${CONVERSATION_ID_1}');
         `
       );
 
@@ -1409,7 +1402,7 @@ describe('SQL migrations test', () => {
       const CONVERSATION_ID_1 = generateGuid();
       const CONVERSATION_ID_2 = generateGuid();
 
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-1',
         timestamp: 1,
         queueType: 'reactions',
@@ -1417,7 +1410,7 @@ describe('SQL migrations test', () => {
           messageId: MESSAGE_ID_1,
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-2',
         timestamp: 2,
         queueType: 'reactions',
@@ -1425,12 +1418,12 @@ describe('SQL migrations test', () => {
           messageId: MESSAGE_ID_2,
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-3-missing-data',
         timestamp: 3,
         queueType: 'reactions',
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-4-non-string-messageId',
         timestamp: 1,
         queueType: 'reactions',
@@ -1438,7 +1431,7 @@ describe('SQL migrations test', () => {
           messageId: 4,
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-5-missing-message',
         timestamp: 5,
         queueType: 'reactions',
@@ -1446,7 +1439,7 @@ describe('SQL migrations test', () => {
           messageId: 'missing',
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-6-missing-conversation',
         timestamp: 6,
         queueType: 'reactions',
@@ -1490,7 +1483,7 @@ describe('SQL migrations test', () => {
       assert.strictEqual(reactionJobs.get(), 0, 'reaction jobs after');
       assert.strictEqual(conversationJobs.get(), 2, 'conversation jobs after');
 
-      const jobs = getJobsInQueueSync(db, 'conversation');
+      const jobs = getJobsInQueue(db, 'conversation');
 
       assert.deepEqual(jobs, [
         {
@@ -1525,7 +1518,7 @@ describe('SQL migrations test', () => {
       const CONVERSATION_ID_1 = generateGuid();
       const CONVERSATION_ID_2 = generateGuid();
 
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-1',
         timestamp: 1,
         queueType: 'normal send',
@@ -1534,7 +1527,7 @@ describe('SQL migrations test', () => {
           messageId: MESSAGE_ID_1,
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-2',
         timestamp: 2,
         queueType: 'normal send',
@@ -1543,7 +1536,7 @@ describe('SQL migrations test', () => {
           messageId: MESSAGE_ID_2,
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-3-missing-data',
         timestamp: 3,
         queueType: 'normal send',
@@ -1567,7 +1560,7 @@ describe('SQL migrations test', () => {
       assert.strictEqual(normalSend.get(), 0, 'normal send jobs after');
       assert.strictEqual(conversationJobs.get(), 2, 'conversation jobs after');
 
-      const jobs = getJobsInQueueSync(db, 'conversation');
+      const jobs = getJobsInQueue(db, 'conversation');
 
       assert.deepEqual(jobs, [
         {
@@ -1742,7 +1735,7 @@ describe('SQL migrations test', () => {
       assert.strictEqual(totalJobs.get(), 2, 'after total');
       assert.strictEqual(reportSpamJobs.get(), 1, 'after report spam');
 
-      const jobs = getJobsInQueueSync(db, 'report spam');
+      const jobs = getJobsInQueue(db, 'report spam');
 
       assert.deepEqual(jobs, [
         {
@@ -2487,20 +2480,18 @@ describe('SQL migrations test', () => {
       db.exec(
         `
         INSERT INTO messages
-        (id, json)
-        VALUES ('${MESSAGE_ID_1}', '${JSON.stringify({
-          conversationId: CONVERSATION_ID_1,
-        })}')
+        (id, conversationId)
+        VALUES ('${MESSAGE_ID_1}', '${CONVERSATION_ID_1}');
         `
       );
 
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-1',
         timestamp: 1,
         queueType: 'random job',
         data: {},
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-2',
         timestamp: 2,
         queueType: 'delivery receipts',
@@ -2509,7 +2500,7 @@ describe('SQL migrations test', () => {
           deliveryReceipts: [],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-3',
         timestamp: 3,
         queueType: 'read receipts',
@@ -2518,7 +2509,7 @@ describe('SQL migrations test', () => {
           readReceipts: [],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-4',
         timestamp: 4,
         queueType: 'viewed receipts',
@@ -2527,7 +2518,7 @@ describe('SQL migrations test', () => {
           viewedReceipt: {},
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-5',
         timestamp: 5,
         queueType: 'conversation',
@@ -2577,7 +2568,7 @@ describe('SQL migrations test', () => {
       const CONVERSATION_ID_1 = generateGuid();
       const CONVERSATION_ID_2 = generateGuid();
 
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-1',
         timestamp: 1,
         queueType: 'delivery receipts',
@@ -2591,7 +2582,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-2',
         timestamp: 2,
         queueType: 'delivery receipts',
@@ -2605,12 +2596,12 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-3-missing-data',
         timestamp: 3,
         queueType: 'delivery receipts',
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-4-non-string-messageId',
         timestamp: 4,
         queueType: 'delivery receipts',
@@ -2624,7 +2615,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-5-missing-message',
         timestamp: 5,
         queueType: 'delivery receipts',
@@ -2638,7 +2629,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-6-missing-conversation',
         timestamp: 6,
         queueType: 'delivery receipts',
@@ -2652,7 +2643,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-7-missing-delivery-receipts',
         timestamp: 7,
         queueType: 'delivery receipts',
@@ -2698,7 +2689,7 @@ describe('SQL migrations test', () => {
       assert.strictEqual(conversationJobs.get(), 2, 'conversation jobs after');
       assert.strictEqual(deliveryJobs.get(), 0, 'delivery jobs after');
 
-      const jobs = getJobsInQueueSync(db, 'conversation');
+      const jobs = getJobsInQueue(db, 'conversation');
 
       assert.deepEqual(jobs, [
         {
@@ -2748,7 +2739,7 @@ describe('SQL migrations test', () => {
       const CONVERSATION_ID_1 = generateGuid();
       const CONVERSATION_ID_2 = generateGuid();
 
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-1',
         timestamp: 1,
         queueType: 'read receipts',
@@ -2762,7 +2753,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-2',
         timestamp: 2,
         queueType: 'read receipts',
@@ -2776,12 +2767,12 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-3-missing-data',
         timestamp: 3,
         queueType: 'read receipts',
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-4-non-string-messageId',
         timestamp: 4,
         queueType: 'read receipts',
@@ -2795,7 +2786,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-5-missing-message',
         timestamp: 5,
         queueType: 'read receipts',
@@ -2809,7 +2800,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-6-missing-conversation',
         timestamp: 6,
         queueType: 'read receipts',
@@ -2823,7 +2814,7 @@ describe('SQL migrations test', () => {
           ],
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-7-missing-read-receipts',
         timestamp: 7,
         queueType: 'read receipts',
@@ -2867,7 +2858,7 @@ describe('SQL migrations test', () => {
       assert.strictEqual(conversationJobs.get(), 2, 'conversation jobs after');
       assert.strictEqual(readJobs.get(), 0, 'read jobs after');
 
-      const jobs = getJobsInQueueSync(db, 'conversation');
+      const jobs = getJobsInQueue(db, 'conversation');
 
       assert.deepEqual(jobs, [
         {
@@ -2917,7 +2908,7 @@ describe('SQL migrations test', () => {
       const CONVERSATION_ID_1 = generateGuid();
       const CONVERSATION_ID_2 = generateGuid();
 
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-1',
         timestamp: 1,
         queueType: 'viewed receipts',
@@ -2929,7 +2920,7 @@ describe('SQL migrations test', () => {
           },
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-2',
         timestamp: 2,
         queueType: 'viewed receipts',
@@ -2941,12 +2932,12 @@ describe('SQL migrations test', () => {
           },
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-3-missing-data',
         timestamp: 3,
         queueType: 'viewed receipts',
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-4-non-string-messageId',
         timestamp: 4,
         queueType: 'viewed receipts',
@@ -2958,7 +2949,7 @@ describe('SQL migrations test', () => {
           },
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-5-missing-message',
         timestamp: 5,
         queueType: 'viewed receipts',
@@ -2970,7 +2961,7 @@ describe('SQL migrations test', () => {
           },
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-6-missing-conversation',
         timestamp: 6,
         queueType: 'viewed receipts',
@@ -2982,7 +2973,7 @@ describe('SQL migrations test', () => {
           },
         },
       });
-      insertJobSync(db, {
+      insertJob(db, {
         id: 'id-7-missing-viewed-receipt',
         timestamp: 7,
         queueType: 'viewed receipts',
@@ -3028,7 +3019,7 @@ describe('SQL migrations test', () => {
       assert.strictEqual(conversationJobs.get(), 2, 'conversation jobs after');
       assert.strictEqual(viewedJobs.get(), 0, 'viewed jobs after');
 
-      const jobs = getJobsInQueueSync(db, 'conversation');
+      const jobs = getJobsInQueue(db, 'conversation');
 
       assert.deepEqual(jobs, [
         {

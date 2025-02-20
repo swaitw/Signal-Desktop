@@ -28,6 +28,9 @@ import { SmartEditNicknameAndNoteModal } from './EditNicknameAndNoteModal';
 import { SmartNotePreviewModal } from './NotePreviewModal';
 import { SmartCallLinkEditModal } from './CallLinkEditModal';
 import { SmartCallLinkAddNameModal } from './CallLinkAddNameModal';
+import { SmartConfirmLeaveCallModal } from './ConfirmLeaveCallModal';
+import { SmartCallLinkPendingParticipantModal } from './CallLinkPendingParticipantModal';
+import { SmartAttachmentNotAvailableModal } from './AttachmentNotAvailableModal';
 
 function renderCallLinkAddNameModal(): JSX.Element {
   return <SmartCallLinkAddNameModal />;
@@ -35,6 +38,14 @@ function renderCallLinkAddNameModal(): JSX.Element {
 
 function renderCallLinkEditModal(): JSX.Element {
   return <SmartCallLinkEditModal />;
+}
+
+function renderCallLinkPendingParticipantModal(): JSX.Element {
+  return <SmartCallLinkPendingParticipantModal />;
+}
+
+function renderConfirmLeaveCallModal(): JSX.Element {
+  return <SmartConfirmLeaveCallModal />;
 }
 
 function renderEditHistoryMessagesModal(): JSX.Element {
@@ -89,6 +100,10 @@ function renderAboutContactModal(): JSX.Element {
   return <SmartAboutContactModal />;
 }
 
+function renderAttachmentNotAvailableModal(): JSX.Element {
+  return <SmartAttachmentNotAvailableModal />;
+}
+
 export const SmartGlobalModalContainer = memo(
   function SmartGlobalModalContainer() {
     const conversationsStoppingSend = useSelector(getConversationsStoppingSend);
@@ -100,8 +115,11 @@ export const SmartGlobalModalContainer = memo(
     const {
       aboutContactModalContactId,
       addUserToAnotherGroupModalContactId,
+      attachmentNotAvailableModalType,
       callLinkAddNameModalRoomId,
       callLinkEditModalRoomId,
+      callLinkPendingParticipantContactId,
+      confirmLeaveCallModalState,
       contactModalState,
       deleteMessagesProps,
       editHistoryMessages,
@@ -162,7 +180,7 @@ export const SmartGlobalModalContainer = memo(
       }: {
         buttonVariant?: ButtonVariant;
         description?: string;
-        title?: string;
+        title?: string | null;
       }) => (
         <ErrorModal
           buttonVariant={buttonVariant}
@@ -177,11 +195,16 @@ export const SmartGlobalModalContainer = memo(
 
     return (
       <GlobalModalContainer
+        attachmentNotAvailableModalType={attachmentNotAvailableModalType}
         addUserToAnotherGroupModalContactId={
           addUserToAnotherGroupModalContactId
         }
         callLinkAddNameModalRoomId={callLinkAddNameModalRoomId}
         callLinkEditModalRoomId={callLinkEditModalRoomId}
+        callLinkPendingParticipantContactId={
+          callLinkPendingParticipantContactId
+        }
+        confirmLeaveCallModalState={confirmLeaveCallModalState}
         contactModalState={contactModalState}
         editHistoryMessages={editHistoryMessages}
         editNicknameAndNoteModalProps={editNicknameAndNoteModalProps}
@@ -204,8 +227,13 @@ export const SmartGlobalModalContainer = memo(
         isWhatsNewVisible={isWhatsNewVisible}
         renderAboutContactModal={renderAboutContactModal}
         renderAddUserToAnotherGroup={renderAddUserToAnotherGroup}
+        renderAttachmentNotAvailableModal={renderAttachmentNotAvailableModal}
         renderCallLinkAddNameModal={renderCallLinkAddNameModal}
         renderCallLinkEditModal={renderCallLinkEditModal}
+        renderCallLinkPendingParticipantModal={
+          renderCallLinkPendingParticipantModal
+        }
+        renderConfirmLeaveCallModal={renderConfirmLeaveCallModal}
         renderContactModal={renderContactModal}
         renderEditHistoryMessagesModal={renderEditHistoryMessagesModal}
         renderEditNicknameAndNoteModal={renderEditNicknameAndNoteModal}

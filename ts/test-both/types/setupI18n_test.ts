@@ -18,10 +18,10 @@ describe('setupI18n', () => {
       assert.strictEqual(i18n('icu:reportIssue'), 'Contact Support');
     });
     it('returns message with single substitution', () => {
-      const actual = i18n('icu:migratingToSQLCipher', {
-        status: '45/200',
+      const actual = i18n('icu:ContactListItem__remove-system--title', {
+        title: 'Alice',
       });
-      assert.equal(actual, 'Optimizing messages... 45/200 complete.');
+      assert.equal(actual, 'Unable to remove Alice');
     });
     it('returns message with multiple substitutions', () => {
       const actual = i18n('icu:theyChangedTheTimer', {
@@ -54,13 +54,10 @@ describe('setupI18n', () => {
       const intl = i18n.getIntl();
       assert.isObject(intl);
       const result = intl.formatMessage(
-        { id: 'icu:emptyInboxMessage' },
-        { composeIcon: 'ICONIC' }
+        { id: 'icu:contactAvatarAlt' },
+        { name: 'NAME' }
       );
-      assert.equal(
-        result,
-        'Click the ICONIC above and search for your contacts or groups to message.'
-      );
+      assert.equal(result, 'Avatar for contact NAME');
     });
   });
 });

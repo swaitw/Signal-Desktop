@@ -1,8 +1,10 @@
 // Copyright 2022 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { ReadonlyDeep } from 'type-fest';
+
 import type { RawBodyRange } from '../types/BodyRange';
-import type { MessageAttributesType } from '../model-types.d';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
 import type { ICUStringMessageParamsByKeyType } from '../types/Util';
 import * as Attachment from '../types/Attachment';
 import * as EmbeddedContact from '../types/EmbeddedContact';
@@ -54,6 +56,7 @@ import {
 } from '../messages/helpers';
 import { MessageRequestResponseEvent } from '../types/MessageRequestResponseEvent';
 import { missingCaseError } from './missingCaseError';
+import { getUserConversationId } from '../state/selectors/user';
 
 function getNameForNumber(e164: string): string {
   const conversation = window.ConversationController.get(e164);
@@ -64,9 +67,9 @@ function getNameForNumber(e164: string): string {
 }
 
 export function getNotificationDataForMessage(
-  attributes: MessageAttributesType
+  attributes: ReadonlyMessageAttributesType
 ): {
-  bodyRanges?: ReadonlyArray<RawBodyRange>;
+  bodyRanges?: ReadonlyArray<ReadonlyDeep<RawBodyRange>>;
   emoji?: string;
   text: string;
 } {
@@ -431,6 +434,7 @@ export function getNotificationDataForMessage(
   if (isCallHistory(attributes)) {
     const state = window.reduxStore.getState();
     const callingNotification = getPropsForCallHistory(attributes, {
+      ourConversationId: getUserConversationId(state),
       callSelector: getCallSelector(state),
       activeCall: getActiveCall(state),
       callHistorySelector: getCallHistorySelector(state),

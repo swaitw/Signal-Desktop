@@ -2,17 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { omit } from 'lodash';
 import { assert } from 'chai';
-import type { Database } from '@signalapp/better-sqlite3';
-import SQL from '@signalapp/better-sqlite3';
 
+import type { ReadableDB, WritableDB } from '../../sql/Interface';
 import { jsonToObject, objectToJSON, sql, sqlJoin } from '../../sql/util';
-import { updateToVersion } from './helpers';
+import { createDB, updateToVersion } from './helpers';
 import type { LegacyAttachmentDownloadJobType } from '../../sql/migrations/1040-undownloaded-backed-up-media';
 import type { AttachmentType } from '../../types/Attachment';
 import type { AttachmentDownloadJobType } from '../../types/AttachmentDownload';
 import { IMAGE_JPEG } from '../../types/MIME';
 
-function getAttachmentDownloadJobs(db: Database) {
+function getAttachmentDownloadJobs(db: ReadableDB) {
   const [query] = sql`
     SELECT * FROM attachment_downloads ORDER BY receivedAt DESC;
   `;
@@ -28,10 +27,10 @@ function getAttachmentDownloadJobs(db: Database) {
 
 type UnflattenedAttachmentDownloadJobType = Omit<
   AttachmentDownloadJobType,
-  'digest' | 'contentType' | 'size'
+  'digest' | 'contentType' | 'size' | 'source' | 'ciphertextSize'
 >;
 function insertNewJob(
-  db: Database,
+  db: WritableDB,
   job: UnflattenedAttachmentDownloadJobType,
   addMessageFirst: boolean = true
 ): void {
@@ -82,10 +81,10 @@ function insertNewJob(
 
 describe('SQL/updateToSchemaVersion1040', () => {
   describe('Storing of new attachment jobs', () => {
-    let db: Database;
+    let db: WritableDB;
 
     beforeEach(() => {
-      db = new SQL(':memory:');
+      db = createDB();
       updateToVersion(db, 1040);
     });
 
@@ -305,24 +304,25 @@ describe('SQL/updateToSchemaVersion1040', () => {
     });
 
     it('respects foreign key constraint on messageId', () => {
-      const job: AttachmentDownloadJobType = {
-        messageId: 'message1',
-        attachmentType: 'attachment',
-        attachment: {
+      const job: Omit<AttachmentDownloadJobType, 'source' | 'ciphertextSize'> =
+        {
+          messageId: 'message1',
+          attachmentType: 'attachment',
+          attachment: {
+            digest: 'digest1',
+            contentType: IMAGE_JPEG,
+            size: 128,
+          },
+          receivedAt: 1970,
           digest: 'digest1',
           contentType: IMAGE_JPEG,
           size: 128,
-        },
-        receivedAt: 1970,
-        digest: 'digest1',
-        contentType: IMAGE_JPEG,
-        size: 128,
-        sentAt: 2070,
-        active: false,
-        retryAfter: null,
-        attempts: 0,
-        lastAttemptTimestamp: null,
-      };
+          sentAt: 2070,
+          active: false,
+          retryAfter: null,
+          attempts: 0,
+          lastAttemptTimestamp: null,
+        };
       // throws if we don't add the message first
       assert.throws(() => insertNewJob(db, job, false));
       insertNewJob(db, job, true);
@@ -338,10 +338,10 @@ describe('SQL/updateToSchemaVersion1040', () => {
   });
 
   describe('existing jobs are transferred', () => {
-    let db: Database;
+    let db: WritableDB;
 
     beforeEach(() => {
-      db = new SQL(':memory:');
+      db = createDB();
       updateToVersion(db, 1030);
     });
 
@@ -462,7 +462,7 @@ describe('SQL/updateToSchemaVersion1040', () => {
 });
 
 function insertLegacyJob(
-  db: Database,
+  db: WritableDB,
   job: Partial<LegacyAttachmentDownloadJobType>
 ): void {
   db.prepare('INSERT OR REPLACE INTO messages (id) VALUES ($id)').run({

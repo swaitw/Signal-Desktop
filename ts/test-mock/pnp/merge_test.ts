@@ -14,7 +14,11 @@ import { toUntaggedPni } from '../../types/ServiceId';
 import { MY_STORY_ID } from '../../types/Stories';
 import { Bootstrap } from '../bootstrap';
 import type { App } from '../bootstrap';
-import { expectSystemMessages, typeIntoInput } from '../helpers';
+import {
+  expectSystemMessages,
+  typeIntoInput,
+  waitForEnabledComposer,
+} from '../helpers';
 
 export const debug = createDebug('mock:test:merge');
 
@@ -45,7 +49,6 @@ describe('pnp/merge', function (this: Mocha.Suite) {
 
     state = state.updateAccount({
       profileKey: phone.profileKey.serialize(),
-      e164: phone.device.number,
     });
 
     state = state.addContact(
@@ -68,7 +71,7 @@ describe('pnp/merge', function (this: Mocha.Suite) {
 
       serviceE164: undefined,
       identityKey: aciIdentityKey,
-      givenName: pniContact.profileName,
+      givenName: 'ACI Contact',
     });
 
     // Put both contacts in left pane
@@ -128,7 +131,7 @@ describe('pnp/merge', function (this: Mocha.Suite) {
 
       debug('Send message to ACI');
       {
-        const compositionInput = await app.waitForEnabledComposer();
+        const compositionInput = await waitForEnabledComposer(window);
 
         await typeIntoInput(compositionInput, 'Hello ACI');
         await compositionInput.press('Enter');
@@ -155,7 +158,7 @@ describe('pnp/merge', function (this: Mocha.Suite) {
 
       if (withPNIMessage) {
         debug('Send message to PNI');
-        const compositionInput = await app.waitForEnabledComposer();
+        const compositionInput = await waitForEnabledComposer(window);
 
         await typeIntoInput(compositionInput, 'Hello PNI');
         await compositionInput.press('Enter');
@@ -268,7 +271,7 @@ describe('pnp/merge', function (this: Mocha.Suite) {
 
       debug('Send message to merged contact');
       {
-        const compositionInput = await app.waitForEnabledComposer();
+        const compositionInput = await waitForEnabledComposer(window);
 
         await typeIntoInput(compositionInput, 'Hello merged');
         await compositionInput.press('Enter');
@@ -344,18 +347,18 @@ describe('pnp/merge', function (this: Mocha.Suite) {
       'removing both contacts from storage service, adding one combined contact'
     );
     {
-      const state = await phone.expectStorageState('consistency check');
-      await phone.setStorageState(
-        state.mergeContact(pniContact, {
-          identityState: Proto.ContactRecord.IdentityState.DEFAULT,
-          whitelisted: true,
-          identityKey: pniContact.publicKey.serialize(),
-          profileKey: pniContact.profileKey.serialize(),
-        })
-      );
+      let state = await phone.expectStorageState('consistency check');
+      state = state.mergeContact(pniContact, {
+        identityState: Proto.ContactRecord.IdentityState.DEFAULT,
+        whitelisted: true,
+        identityKey: pniContact.publicKey.serialize(),
+        profileKey: pniContact.profileKey.serialize(),
+      });
+      await phone.setStorageState(state);
       await phone.sendFetchStorage({
         timestamp: bootstrap.getTimestamp(),
       });
+      await app.waitForManifestVersion(state.version);
     }
 
     const window = await app.getWindow();
@@ -378,7 +381,7 @@ describe('pnp/merge', function (this: Mocha.Suite) {
 
     debug('Send message to merged contact');
     {
-      const compositionInput = await app.waitForEnabledComposer();
+      const compositionInput = await waitForEnabledComposer(window);
 
       await typeIntoInput(compositionInput, 'Hello merged');
       await compositionInput.press('Enter');
@@ -389,7 +392,6 @@ describe('pnp/merge', function (this: Mocha.Suite) {
       const newState = await phone.waitForStorageState({
         after: state,
       });
-
       const { added, removed } = newState.diff(state);
       assert.strictEqual(added.length, 2, 'only two records must be added');
       assert.strictEqual(removed.length, 1, 'only one record must be removed');
@@ -453,5 +455,89 @@ describe('pnp/merge', function (this: Mocha.Suite) {
       const messages = window.locator('.module-message__text');
       assert.strictEqual(await messages.count(), 0, 'message count');
     }
+  });
+
+  it('preserves expireTimerVersion after merge', async () => {
+    const { phone, desktop } = bootstrap;
+
+    for (const key of ['aci' as const, 'pni' as const]) {
+      debug(`Send a ${key} sync message`);
+      const timestamp = bootstrap.getTimestamp();
+      const destinationServiceId = pniContact.device[key];
+      const destination = key === 'pni' ? pniContact.device.number : undefined;
+      const content = {
+        syncMessage: {
+          sent: {
+            destinationServiceId,
+            destination,
+            timestamp: Long.fromNumber(timestamp),
+            message: {
+              timestamp: Long.fromNumber(timestamp),
+              flags: Proto.DataMessage.Flags.EXPIRATION_TIMER_UPDATE,
+              expireTimer: key === 'pni' ? 90 * 24 * 3600 : 60 * 24 * 3600,
+              expireTimerVersion: key === 'pni' ? 3 : 4,
+            },
+            unidentifiedStatus: [
+              {
+                destinationServiceId,
+                destination,
+              },
+            ],
+          },
+        },
+      };
+      const sendOptions = {
+        timestamp,
+      };
+      // eslint-disable-next-line no-await-in-loop
+      await phone.sendRaw(desktop, content, sendOptions);
+    }
+
+    debug(
+      'removing both contacts from storage service, adding one combined contact'
+    );
+    {
+      const state = await phone.expectStorageState('consistency check');
+      await phone.setStorageState(
+        state.mergeContact(pniContact, {
+          identityState: Proto.ContactRecord.IdentityState.DEFAULT,
+          whitelisted: true,
+          identityKey: pniContact.publicKey.serialize(),
+          profileKey: pniContact.profileKey.serialize(),
+          pniSignatureVerified: true,
+        })
+      );
+      await phone.sendFetchStorage({
+        timestamp: bootstrap.getTimestamp(),
+      });
+      await app.waitForManifestVersion(state.version);
+    }
+
+    const window = await app.getWindow();
+    const leftPane = window.locator('#LeftPane');
+
+    debug('opening conversation with the merged contact');
+    await leftPane
+      .locator(
+        `[data-testid="${pniContact.device.aci}"] >> ` +
+          `"${pniContact.profileName}"`
+      )
+      .click();
+
+    await window.locator('.module-conversation-hero').waitFor();
+
+    debug('Send message to merged contact');
+    {
+      const compositionInput = await waitForEnabledComposer(window);
+
+      await typeIntoInput(compositionInput, 'Hello merged');
+      await compositionInput.press('Enter');
+    }
+
+    debug('Getting message to merged contact');
+    const { body, dataMessage } = await pniContact.waitForMessage();
+    assert.strictEqual(body, 'Hello merged');
+    assert.strictEqual(dataMessage.expireTimer, 60 * 24 * 3600);
+    assert.strictEqual(dataMessage.expireTimerVersion, 4);
   });
 });

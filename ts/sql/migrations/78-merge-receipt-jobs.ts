@@ -1,19 +1,14 @@
 // Copyright 2023 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from '@signalapp/better-sqlite3';
-
 import type { LoggerType } from '../../types/Logging';
 import { isRecord } from '../../util/isRecord';
-import {
-  getJobsInQueueSync,
-  getMessageByIdSync,
-  insertJobSync,
-} from '../Server';
+import type { WritableDB } from '../Interface';
+import { getJobsInQueue, insertJob } from '../Server';
 
 export default function updateToSchemaVersion78(
   currentVersion: number,
-  db: Database,
+  db: WritableDB,
   logger: LoggerType
 ): void {
   if (currentVersion >= 78) {
@@ -46,8 +41,12 @@ export default function updateToSchemaVersion78(
       },
     ];
 
+    const getMessageById = db.prepare(
+      'SELECT conversationId FROM messages WHERE id IS ?'
+    );
+
     for (const queue of queues) {
-      const prevJobs = getJobsInQueueSync(db, queue.queueType);
+      const prevJobs = getJobsInQueue(db, queue.queueType);
       deleteJobsInQueue.run({ queueType: queue.queueType });
 
       prevJobs.forEach(job => {
@@ -67,7 +66,7 @@ export default function updateToSchemaVersion78(
           return;
         }
 
-        const message = getMessageByIdSync(db, messageId);
+        const message = getMessageById.get(messageId);
         if (!message) {
           logger.warn(
             `updateToSchemaVersion78: Unable to find message for ${queue.queueType} job ${id}`
@@ -121,7 +120,7 @@ export default function updateToSchemaVersion78(
           },
         };
 
-        insertJobSync(db, newJob);
+        insertJob(db, newJob);
       });
     }
 

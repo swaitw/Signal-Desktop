@@ -19,7 +19,7 @@ import {
 import { onStoryRecipientUpdate } from './onStoryRecipientUpdate';
 import { sendDeleteForEveryoneMessage } from './sendDeleteForEveryoneMessage';
 import { isGroupV2 } from './whatTypeOfConversation';
-import { __DEPRECATED$getMessageById } from '../messages/getMessageById';
+import { getMessageById } from '../messages/getMessageById';
 import { strictAssert } from './assert';
 import { repeat, zipObject } from './iterables';
 import { isOlderThan } from './timestamp';
@@ -46,7 +46,7 @@ export async function deleteStoryForEveryone(
   }
 
   const logId = `deleteStoryForEveryone(${story.messageId})`;
-  const message = await __DEPRECATED$getMessageById(story.messageId);
+  const message = await getMessageById(story.messageId);
   if (!message) {
     throw new Error('Story not found');
   }
@@ -190,9 +190,8 @@ export async function deleteStoryForEveryone(
     await conversationJobQueue.add(jobData, async jobToInsert => {
       log.info(`${logId}: Deleting message with job ${jobToInsert.id}`);
 
-      await window.Signal.Data.saveMessage(message.attributes, {
+      await window.MessageCache.saveMessage(message.attributes, {
         jobToInsert,
-        ourAci: window.textsecure.storage.user.getCheckedAci(),
       });
     });
   } catch (error) {

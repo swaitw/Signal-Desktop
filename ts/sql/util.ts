@@ -1,15 +1,18 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
+/* eslint-disable max-classes-per-file */
 
-import type { Database } from '@signalapp/better-sqlite3';
 import { isNumber, last } from 'lodash';
+import type { ReadableDB, WritableDB } from './Interface';
+import type { LoggerType } from '../types/Logging';
 
 export type EmptyQuery = [];
 export type ArrayQuery = Array<ReadonlyArray<null | number | bigint | string>>;
 export type Query = {
   [key: string]: null | number | bigint | string | Uint8Array;
 };
-export type JSONRows = Array<{ readonly json: string }>;
+export type JSONRow = Readonly<{ json: string }>;
+export type JSONRows = Array<JSONRow>;
 
 export type TableType =
   | 'attachment_downloads'
@@ -44,10 +47,12 @@ export type QueryTemplateParam =
   | undefined;
 export type QueryFragmentValue = QueryFragment | QueryTemplateParam;
 
-export type QueryFragment = [
-  { fragment: string },
-  ReadonlyArray<QueryTemplateParam>
-];
+export class QueryFragment {
+  constructor(
+    public readonly fragment: string,
+    public readonly fragmentParams: ReadonlyArray<QueryTemplateParam>
+  ) {}
+}
 
 /**
  * You can use tagged template literals to build "fragments" of SQL queries
@@ -79,8 +84,8 @@ export function sqlFragment(
     query += string;
 
     if (index < values.length) {
-      if (Array.isArray(value)) {
-        const [{ fragment }, fragmentParams] = value;
+      if (value instanceof QueryFragment) {
+        const { fragment, fragmentParams } = value;
         query += fragment;
         params.push(...fragmentParams);
       } else {
@@ -90,7 +95,7 @@ export function sqlFragment(
     }
   });
 
-  return [{ fragment: query }, params];
+  return new QueryFragment(query, params);
 }
 
 export function sqlConstant(value: QueryTemplateParam): QueryFragment {
@@ -104,7 +109,7 @@ export function sqlConstant(value: QueryTemplateParam): QueryFragment {
   } else {
     fragment = `'${value}'`;
   }
-  return [{ fragment }, []];
+  return new QueryFragment(fragment, []);
 }
 
 /**
@@ -118,7 +123,7 @@ export function sqlJoin(
   const params: Array<QueryTemplateParam> = [];
 
   items.forEach((item, index) => {
-    const [{ fragment }, fragmentParams] = sqlFragment`${item}`;
+    const { fragment, fragmentParams } = sqlFragment`${item}`;
     query += fragment;
     params.push(...fragmentParams);
 
@@ -127,7 +132,7 @@ export function sqlJoin(
     }
   });
 
-  return [{ fragment: query }, params];
+  return new QueryFragment(query, params);
 }
 
 export type QueryTemplate = [string, ReadonlyArray<QueryTemplateParam>];
@@ -155,20 +160,9 @@ export function sql(
   strings: TemplateStringsArray,
   ...values: Array<QueryFragment | QueryTemplateParam>
 ): QueryTemplate {
-  const [{ fragment }, params] = sqlFragment(strings, ...values);
-  return [fragment, params];
+  const { fragment, fragmentParams } = sqlFragment(strings, ...values);
+  return [fragment, fragmentParams];
 }
-
-type QueryPlanRow = Readonly<{
-  id: number;
-  parent: number;
-  details: string;
-}>;
-
-type QueryPlan = Readonly<{
-  query: string;
-  plan: ReadonlyArray<QueryPlanRow>;
-}>;
 
 /**
  * Returns typed objects of the query plan for the given query.
@@ -185,19 +179,27 @@ type QueryPlan = Readonly<{
  * ```
  */
 export function explainQueryPlan(
-  db: Database,
+  db: ReadableDB,
+  logger: LoggerType,
   template: QueryTemplate
-): QueryPlan {
+): QueryTemplate {
   const [query, params] = template;
   const plan = db.prepare(`EXPLAIN QUERY PLAN ${query}`).all(params);
-  return { query, plan };
+  logger.info('EXPLAIN QUERY PLAN');
+  for (const line of query.split('\n')) {
+    logger.info(line);
+  }
+  for (const row of plan) {
+    logger.info(`id=${row.id}, parent=${row.parent}, detail=${row.detail}`);
+  }
+  return [query, params];
 }
 
 //
 // Database helpers
 //
 
-export function getSQLiteVersion(db: Database): string {
+export function getSQLiteVersion(db: ReadableDB): string {
   const { sqlite_version: version } = db
     .prepare<EmptyQuery>('select sqlite_version() AS sqlite_version')
     .get();
@@ -205,22 +207,22 @@ export function getSQLiteVersion(db: Database): string {
   return version;
 }
 
-export function getSchemaVersion(db: Database): number {
+export function getSchemaVersion(db: ReadableDB): number {
   return db.pragma('schema_version', { simple: true });
 }
 
-export function setUserVersion(db: Database, version: number): void {
+export function setUserVersion(db: WritableDB, version: number): void {
   if (!isNumber(version)) {
     throw new Error(`setUserVersion: version ${version} is not a number`);
   }
   db.pragma(`user_version = ${version}`);
 }
 
-export function getUserVersion(db: Database): number {
+export function getUserVersion(db: ReadableDB): number {
   return db.pragma('user_version', { simple: true });
 }
 
-export function getSQLCipherVersion(db: Database): string | undefined {
+export function getSQLCipherVersion(db: ReadableDB): string | undefined {
   return db.pragma('cipher_version', { simple: true });
 }
 
@@ -229,18 +231,18 @@ export function getSQLCipherVersion(db: Database): string | undefined {
 //
 
 export function batchMultiVarQuery<ValueT>(
-  db: Database,
+  db: ReadableDB,
   values: ReadonlyArray<ValueT>,
   query: (batch: ReadonlyArray<ValueT>) => void
 ): [];
 export function batchMultiVarQuery<ValueT, ResultT>(
-  db: Database,
+  db: ReadableDB,
   values: ReadonlyArray<ValueT>,
   query: (batch: ReadonlyArray<ValueT>) => Array<ResultT>
 ): Array<ResultT>;
 
 export function batchMultiVarQuery<ValueT, ResultT>(
-  db: Database,
+  db: ReadableDB,
   values: ReadonlyArray<ValueT>,
   query:
     | ((batch: ReadonlyArray<ValueT>) => void)
@@ -265,7 +267,7 @@ export function batchMultiVarQuery<ValueT, ResultT>(
 }
 
 export function createOrUpdate<Key extends string | number>(
-  db: Database,
+  db: WritableDB,
   table: TableType,
   data: Record<string, unknown> & { id: Key }
 ): void {
@@ -291,7 +293,7 @@ export function createOrUpdate<Key extends string | number>(
 }
 
 export function bulkAdd(
-  db: Database,
+  db: WritableDB,
   table: TableType,
   array: Array<Record<string, unknown> & { id: string | number }>
 ): void {
@@ -303,7 +305,7 @@ export function bulkAdd(
 }
 
 export function getById<Key extends string | number, Result = unknown>(
-  db: Database,
+  db: ReadableDB,
   table: TableType,
   id: Key
 ): Result | undefined {
@@ -327,7 +329,7 @@ export function getById<Key extends string | number, Result = unknown>(
 }
 
 export function removeById<Key extends string | number>(
-  db: Database,
+  db: WritableDB,
   tableName: TableType,
   id: Key | Array<Key>
 ): number {
@@ -359,11 +361,11 @@ export function removeById<Key extends string | number>(
   return totalChanges;
 }
 
-export function removeAllFromTable(db: Database, table: TableType): number {
+export function removeAllFromTable(db: WritableDB, table: TableType): number {
   return db.prepare<EmptyQuery>(`DELETE FROM ${table};`).run().changes;
 }
 
-export function getAllFromTable<T>(db: Database, table: TableType): Array<T> {
+export function getAllFromTable<T>(db: ReadableDB, table: TableType): Array<T> {
   const rows: JSONRows = db
     .prepare<EmptyQuery>(`SELECT json FROM ${table};`)
     .all();
@@ -371,7 +373,7 @@ export function getAllFromTable<T>(db: Database, table: TableType): Array<T> {
   return rows.map(row => jsonToObject(row.json));
 }
 
-export function getCountFromTable(db: Database, table: TableType): number {
+export function getCountFromTable(db: ReadableDB, table: TableType): number {
   const result: null | number = db
     .prepare<EmptyQuery>(`SELECT count(*) from ${table};`)
     .pluck(true)
@@ -384,7 +386,7 @@ export function getCountFromTable(db: Database, table: TableType): number {
 
 export class TableIterator<ObjectType extends { id: string }> {
   constructor(
-    private readonly db: Database,
+    private readonly db: ReadableDB,
     private readonly table: TableType,
     private readonly pageSize = 500
   ) {}

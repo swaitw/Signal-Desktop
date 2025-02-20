@@ -16,19 +16,23 @@ import {
 import { WidthBreakpoint, getNavSidebarWidthBreakpoint } from './_util';
 import type { UnreadStats } from '../util/countUnreadStats';
 
-export function NavSidebarActionButton({
-  icon,
-  label,
-  onClick,
-  onKeyDown,
-}: {
+type NavSidebarActionButtonProps = {
   icon: ReactNode;
   label: ReactNode;
   onClick: MouseEventHandler<HTMLButtonElement>;
   onKeyDown?: KeyboardEventHandler<HTMLButtonElement>;
-}): JSX.Element {
+};
+
+export const NavSidebarActionButton = React.forwardRef<
+  HTMLButtonElement,
+  NavSidebarActionButtonProps
+>(function NavSidebarActionButtonInner(
+  { icon, label, onClick, onKeyDown },
+  ref
+): JSX.Element {
   return (
     <button
+      ref={ref}
       type="button"
       className="NavSidebar__ActionButton"
       onClick={onClick}
@@ -38,7 +42,7 @@ export function NavSidebarActionButton({
       <span className="NavSidebar__ActionButtonLabel">{label}</span>
     </button>
   );
-}
+});
 
 export type NavSidebarProps = Readonly<{
   actions?: ReactNode;
@@ -208,7 +212,6 @@ export function NavSidebar({
 
       <div className="NavSidebar__Content">{children}</div>
 
-      {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- See https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/separator_role#focusable_separator */}
       <div
         className={classNames('NavSidebar__DragHandle', {
           'NavSidebar__DragHandle--dragging': dragState === DragState.DRAGGING,
@@ -234,4 +237,21 @@ export function NavSidebarSearchHeader({
   children: ReactNode;
 }): JSX.Element {
   return <div className="NavSidebarSearchHeader">{children}</div>;
+}
+
+export function NavSidebarEmpty({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}): JSX.Element {
+  return (
+    <div className="NavSidebarEmpty">
+      <div className="NavSidebarEmpty__inner">
+        <h3 className="NavSidebarEmpty__title">{title}</h3>
+        <p className="NavSidebarEmpty__subtitle">{subtitle}</p>
+      </div>
+    </div>
+  );
 }

@@ -56,8 +56,16 @@ import {
 import { ContextMenu } from './ContextMenu';
 import { EditState as ProfileEditorEditState } from './ProfileEditor';
 import type { UnreadStats } from '../util/countUnreadStats';
+import { BackupMediaDownloadProgress } from './BackupMediaDownloadProgress';
 
 export type PropsType = {
+  backupMediaDownloadProgress: {
+    totalBytes: number;
+    downloadedBytes: number;
+    isIdle: boolean;
+    isPaused: boolean;
+    downloadBannerDismissed: boolean;
+  };
   otherTabsUnreadStats: UnreadStats;
   hasExpiredDialog: boolean;
   hasFailedStorySends: boolean;
@@ -113,13 +121,19 @@ export type PropsType = {
   blockConversation: (conversationId: string) => void;
   clearConversationSearch: () => void;
   clearGroupCreationError: () => void;
-  clearSearch: () => void;
+  clearSearchQuery: () => void;
   closeMaximumGroupSizeModal: () => void;
   closeRecommendedGroupSizeModal: () => void;
   composeDeleteAvatarFromDisk: DeleteAvatarFromDiskActionType;
   composeReplaceAvatar: ReplaceAvatarActionType;
   composeSaveAvatarToDisk: SaveAvatarToDiskActionType;
   createGroup: () => void;
+  dismissBackupMediaDownloadBanner: () => void;
+  pauseBackupMediaDownload: () => void;
+  resumeBackupMediaDownload: () => void;
+  cancelBackupMediaDownload: () => void;
+  endConversationSearch: () => void;
+  endSearch: () => void;
   navTabsCollapsed: boolean;
   openUsernameReservationModal: () => void;
   onOutgoingAudioCallInConversation: (conversationId: string) => void;
@@ -137,6 +151,7 @@ export type PropsType = {
   showFindByUsername: () => void;
   showFindByPhoneNumber: () => void;
   showConversation: ShowConversationType;
+  preloadConversation: (conversationId: string) => void;
   showInbox: () => void;
   startComposing: () => void;
   startSearch: () => unknown;
@@ -145,7 +160,8 @@ export type PropsType = {
   toggleConversationInChooseMembers: (conversationId: string) => void;
   toggleNavTabsCollapse: (navTabsCollapsed: boolean) => void;
   toggleProfileEditor: (initialEditState?: ProfileEditorEditState) => void;
-  updateSearchTerm: (_: string) => void;
+  updateSearchTerm: (query: string) => void;
+  updateFilterByUnread: (filterByUnread: boolean) => void;
 
   // Render Props
   renderMessageSearchResult: (id: string) => JSX.Element;
@@ -170,12 +186,14 @@ export type PropsType = {
 } & LookupConversationWithoutServiceIdActionsType;
 
 export function LeftPane({
+  backupMediaDownloadProgress,
   otherTabsUnreadStats,
   blockConversation,
+  cancelBackupMediaDownload,
   challengeStatus,
   clearConversationSearch,
   clearGroupCreationError,
-  clearSearch,
+  clearSearchQuery,
   closeMaximumGroupSizeModal,
   closeRecommendedGroupSizeModal,
   composeDeleteAvatarFromDisk,
@@ -183,6 +201,8 @@ export function LeftPane({
   composeSaveAvatarToDisk,
   crashReportCount,
   createGroup,
+  endConversationSearch,
+  endSearch,
   getPreferredBadge,
   hasExpiredDialog,
   hasFailedStorySends,
@@ -200,7 +220,9 @@ export function LeftPane({
   onOutgoingVideoCallInConversation,
 
   openUsernameReservationModal,
+  pauseBackupMediaDownload,
   preferredWidthFromStorage,
+  preloadConversation,
   removeConversation,
   renderCaptchaDialog,
   renderCrashReportDialog,
@@ -211,6 +233,7 @@ export function LeftPane({
   renderRelinkDialog,
   renderUpdateDialog,
   renderToastManager,
+  resumeBackupMediaDownload,
   savePreferredLeftPaneWidth,
   searchInConversation,
   selectedConversationId,
@@ -241,6 +264,8 @@ export function LeftPane({
   usernameCorrupted,
   usernameLinkCorrupted,
   updateSearchTerm,
+  dismissBackupMediaDownloadBanner,
+  updateFilterByUnread,
 }: PropsType): JSX.Element {
   const previousModeSpecificProps = usePrevious(
     modeSpecificProps,
@@ -437,7 +462,7 @@ export function LeftPane({
         const { conversationId, messageId } = conversationToOpen;
         showConversation({ conversationId, messageId });
         if (openedByNumber) {
-          clearSearch();
+          clearSearchQuery();
         }
         event.preventDefault();
         event.stopPropagation();
@@ -455,7 +480,7 @@ export function LeftPane({
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [
-    clearSearch,
+    clearSearchQuery,
     helper,
     isMacOS,
     searchInConversation,
@@ -468,10 +493,14 @@ export function LeftPane({
     startSearch,
   ]);
 
+  const backgroundNode = helper.getBackgroundNode({
+    i18n,
+  });
+
   const preRowsNode = helper.getPreRowsNode({
     clearConversationSearch,
     clearGroupCreationError,
-    clearSearch,
+    clearSearchQuery,
     closeMaximumGroupSizeModal,
     closeRecommendedGroupSizeModal,
     composeDeleteAvatarFromDisk,
@@ -509,26 +538,6 @@ export function LeftPane({
     [showConversation]
   );
 
-  const previousSelectedConversationId = usePrevious(
-    selectedConversationId,
-    selectedConversationId
-  );
-
-  const isScrollable = helper.isScrollable();
-
-  let rowIndexToScrollTo: undefined | number;
-  let scrollBehavior: ScrollBehavior;
-  if (isScrollable) {
-    rowIndexToScrollTo =
-      previousSelectedConversationId === selectedConversationId
-        ? undefined
-        : helper.getRowIndexToScrollTo(selectedConversationId);
-    scrollBehavior = ScrollBehavior.Default;
-  } else {
-    rowIndexToScrollTo = 0;
-    scrollBehavior = ScrollBehavior.Hard;
-  }
-
   // We ensure that the listKey differs between some modes (e.g. inbox/archived), ensuring
   //   that AutoSizer properly detects the new size of its slot in the flexbox. The
   //   archive explainer text at the top of the archive view causes problems otherwise.
@@ -538,6 +547,8 @@ export function LeftPane({
   const measureRef = useRef<HTMLDivElement>(null);
   const measureSize = useSizeObserver(measureRef);
 
+  const previousMeasureSize = usePrevious(null, measureSize);
+
   const widthBreakpoint = getNavSidebarWidthBreakpoint(
     measureSize?.width ?? preferredWidthFromStorage
   );
@@ -546,6 +557,47 @@ export function LeftPane({
     i18n,
     containerWidthBreakpoint: widthBreakpoint,
   };
+
+  // Control scroll position
+  const previousSelectedConversationId = usePrevious(
+    selectedConversationId,
+    selectedConversationId
+  );
+
+  const isScrollable = helper.isScrollable();
+
+  let rowIndexToScrollTo: undefined | number;
+  let scrollBehavior: ScrollBehavior;
+
+  const hasChangedModes =
+    previousModeSpecificProps?.mode !== modeSpecificProps.mode;
+
+  const hasSwitchedToInbox =
+    hasChangedModes && modeSpecificProps.mode === LeftPaneMode.Inbox;
+
+  const hasChangedConversations =
+    previousSelectedConversationId !== selectedConversationId;
+
+  const hasJustMounted = previousMeasureSize == null;
+  if (isScrollable) {
+    const rowIndexForSelectedConversation = helper.getRowIndexToScrollTo(
+      selectedConversationId
+    );
+    if (hasSwitchedToInbox) {
+      rowIndexToScrollTo = rowIndexForSelectedConversation;
+    } else if (
+      modeSpecificProps.mode === LeftPaneMode.Inbox &&
+      (hasChangedConversations || hasJustMounted)
+    ) {
+      rowIndexToScrollTo = rowIndexForSelectedConversation;
+    } else if (hasChangedModes) {
+      rowIndexToScrollTo = 0;
+    }
+    scrollBehavior = ScrollBehavior.Default;
+  } else {
+    rowIndexToScrollTo = 0;
+    scrollBehavior = ScrollBehavior.Hard;
+  }
 
   // Yellow dialogs
   let maybeYellowDialog: JSX.Element | undefined;
@@ -632,6 +684,11 @@ export function LeftPane({
     modeSpecificProps.mode === LeftPaneMode.ChooseGroupMembers ||
     modeSpecificProps.mode === LeftPaneMode.SetGroupMetadata;
 
+  const showBackupMediaDownloadProgress =
+    !hideHeader && !backupMediaDownloadProgress.downloadBannerDismissed;
+
+  const hasDialogs = dialogs.length ? !hideHeader : false;
+
   return (
     <NavSidebar
       title={i18n('icu:LeftPane--chats')}
@@ -667,10 +724,11 @@ export function LeftPane({
             }}
             portalToRoot
           >
-            {({ openMenu, onKeyDown }) => {
+            {({ onClick, onKeyDown, ref }) => {
               return (
                 <NavSidebarActionButton
-                  onClick={openMenu}
+                  ref={ref}
+                  onClick={onClick}
                   onKeyDown={onKeyDown}
                   icon={<span className="module-left-pane__moreActionsIcon" />}
                   label="More Actions"
@@ -681,6 +739,7 @@ export function LeftPane({
         </>
       }
     >
+      {backgroundNode}
       <nav
         className={classNames(
           'module-left-pane',
@@ -703,7 +762,9 @@ export function LeftPane({
           <NavSidebarSearchHeader>
             {helper.getSearchInput({
               clearConversationSearch,
-              clearSearch,
+              clearSearchQuery,
+              endConversationSearch,
+              endSearch,
               i18n,
               onChangeComposeSearchTerm: event => {
                 setComposeSearchTerm(event.target.value);
@@ -715,15 +776,28 @@ export function LeftPane({
               showUserNotFoundModal,
               setIsFetchingUUID,
               showInbox,
+              updateFilterByUnread,
             })}
           </NavSidebarSearchHeader>
         )}
-        <div className="module-left-pane__dialogs">
-          {!hideHeader &&
-            dialogs.map(({ key, dialog }) => (
+
+        {hasDialogs ? (
+          <div className="module-left-pane__dialogs">
+            {dialogs.map(({ key, dialog }) => (
               <React.Fragment key={key}>{dialog}</React.Fragment>
             ))}
-        </div>
+          </div>
+        ) : null}
+        {showBackupMediaDownloadProgress ? (
+          <BackupMediaDownloadProgress
+            i18n={i18n}
+            {...backupMediaDownloadProgress}
+            handleClose={dismissBackupMediaDownloadBanner}
+            handlePause={pauseBackupMediaDownload}
+            handleResume={resumeBackupMediaDownload}
+            handleCancel={cancelBackupMediaDownload}
+          />
+        ) : null}
         {preRowsNode && <React.Fragment key={0}>{preRowsNode}</React.Fragment>}
         <div className="module-left-pane__list--measure" ref={measureRef}>
           <div className="module-left-pane__list--wrapper">
@@ -740,6 +814,7 @@ export function LeftPane({
                 getPreferredBadge={getPreferredBadge}
                 getRow={getRow}
                 i18n={i18n}
+                hasDialogPadding={hasDialogs}
                 onClickArchiveButton={showArchivedConversations}
                 onClickContactCheckbox={(
                   conversationId: string,
@@ -757,6 +832,9 @@ export function LeftPane({
                       throw missingCaseError(disabledReason);
                   }
                 }}
+                onClickClearFilterButton={() => {
+                  updateFilterByUnread(false);
+                }}
                 showUserNotFoundModal={showUserNotFoundModal}
                 setIsFetchingUUID={setIsFetchingUUID}
                 lookupConversationWithoutServiceId={
@@ -764,6 +842,7 @@ export function LeftPane({
                 }
                 showConversation={showConversation}
                 blockConversation={blockConversation}
+                onPreloadConversation={preloadConversation}
                 onSelectConversation={onSelectConversation}
                 onOutgoingAudioCallInConversation={
                   onOutgoingAudioCallInConversation

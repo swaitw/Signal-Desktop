@@ -17,7 +17,7 @@ import type {
   SessionResetsType,
   StorageServiceCredentials,
 } from '../textsecure/Types.d';
-import type { BackupCredentialType } from './backups';
+import type { BackupCredentialWrapperType } from './backups';
 import type { ServiceIdString } from './ServiceId';
 
 import type { RegisteredChallengeType } from '../challenge';
@@ -68,11 +68,12 @@ export type StorageAccessType = {
   // Not used UI, stored as is when imported from backup.
   defaultWallpaperPhotoPointer: Uint8Array;
   defaultWallpaperPreset: number;
+  defaultDimWallpaperInDarkMode: boolean;
+  defaultAutoBubbleColor: boolean;
 
   customColors: CustomColorsItemType;
   device_name: string;
   existingOnboardingStoryMessageIds: ReadonlyArray<string> | undefined;
-  hasRegisterSupportForUnauthenticatedDelivery: boolean;
   hasSetMyStoriesPrivacy: boolean;
   hasCompletedUsernameOnboarding: boolean;
   hasCompletedUsernameLinkOnboarding: boolean;
@@ -80,14 +81,16 @@ export type StorageAccessType = {
   hasSeenGroupStoryEducationSheet: boolean;
   hasViewedOnboardingStory: boolean;
   hasStoriesDisabled: boolean;
-  storyViewReceiptsEnabled: boolean;
+  storyViewReceiptsEnabled: boolean | undefined;
   identityKeyMap: IdentityKeyMap;
   lastAttemptedToRefreshProfilesAt: number;
   lastResortKeyUpdateTime: number;
   lastResortKeyUpdateTimePNI: number;
   localDeleteWarningShown: boolean;
+  accountEntropyPool: string;
   masterKey: string;
-  masterKeyLastRequestTime: number;
+
+  accountEntropyPoolLastRequestTime: number;
   maxPreKeyId: number;
   maxPreKeyIdPNI: number;
   maxKyberPreKeyId: number;
@@ -109,6 +112,7 @@ export type StorageAccessType = {
   synced_at: number;
   userAgent: string;
   uuid_id: string;
+  useRingrtcAdm: boolean;
   pni: string;
   version: string;
   linkPreviews: boolean;
@@ -120,13 +124,13 @@ export type StorageAccessType = {
   phoneNumberDiscoverability: PhoneNumberDiscoverability;
   pinnedConversationIds: ReadonlyArray<string>;
   preferContactAvatars: boolean;
-  primarySendsSms: boolean;
   textFormatting: boolean;
   typingIndicators: boolean;
   sealedSenderIndicators: boolean;
   storageFetchComplete: boolean;
   avatarUrl: string | undefined;
   manifestVersion: number;
+  manifestRecordIkm: Uint8Array;
   storageCredentials: StorageServiceCredentials;
   'storage-service-error-records': ReadonlyArray<UnknownRecord>;
   'storage-service-unknown-records': ReadonlyArray<UnknownRecord>;
@@ -139,9 +143,17 @@ export type StorageAccessType = {
   unidentifiedDeliveryIndicators: boolean;
   groupCredentials: ReadonlyArray<GroupCredentialType>;
   callLinkAuthCredentials: ReadonlyArray<GroupCredentialType>;
-  backupCredentials: ReadonlyArray<BackupCredentialType>;
-  backupCredentialsLastRequestTime: number;
-  setBackupSignatureKey: boolean;
+  backupCombinedCredentials: ReadonlyArray<BackupCredentialWrapperType>;
+  backupCombinedCredentialsLastRequestTime: number;
+  backupMediaRootKey: Uint8Array;
+  backupMediaDownloadTotalBytes: number;
+  backupMediaDownloadCompletedBytes: number;
+  backupMediaDownloadPaused: boolean;
+  backupMediaDownloadBannerDismissed: boolean;
+  backupMediaDownloadIdle: boolean;
+  messageInsertTriggersDisabled: boolean;
+  setBackupMessagesSignatureKey: boolean;
+  setBackupMediaSignatureKey: boolean;
   lastReceivedAtCounter: number;
   preferredReactionEmoji: ReadonlyArray<string>;
   skinTone: number;
@@ -162,8 +174,8 @@ export type StorageAccessType = {
   subscriberCurrencyCode: string;
   donorSubscriptionManuallyCancelled: boolean;
   backupsSubscriberId: Uint8Array;
-  backupsSubscriberCurrencyCode: string;
-  backupsSubscriptionManuallyCancelled: boolean;
+  backupsSubscriberPurchaseToken: string;
+  backupsSubscriberOriginalTransactionId: string;
   displayBadgesOnProfile: boolean;
   keepMutedChatsArchived: boolean;
   usernameLastIntegrityCheck: number;
@@ -175,6 +187,37 @@ export type StorageAccessType = {
     serverId: Uint8Array;
   };
   needOrphanedAttachmentCheck: boolean;
+  observedCapabilities: {
+    deleteSync?: true;
+    ssre2?: true;
+
+    // Note: Upon capability deprecation - change the value type to `never` and
+    // remove it in `ts/background.ts`
+  };
+  releaseNotesNextFetchTime: number;
+  releaseNotesVersionWatermark: string;
+  releaseNotesPreviousManifestHash: string;
+
+  // If present - we are downloading backup
+  backupDownloadPath: string;
+
+  // If present together with backupDownloadPath - we are downloading
+  // link-and-sync backup
+  backupEphemeralKey: Uint8Array;
+
+  // If present - we are resuming the download of known transfer archive
+  backupTransitArchive: {
+    cdn: number;
+    key: string;
+  };
+
+  // If true Desktop message history was restored from backup
+  isRestoredFromBackup: boolean;
+
+  // The `firstAppVersion` present on an BackupInfo from an imported backup.
+  restoredBackupFirstAppVersion: string;
+
+  postRegistrationSyncsStatus: 'incomplete' | 'complete';
 
   // Deprecated
   'challenge:retry-message-ids': never;
@@ -187,6 +230,10 @@ export type StorageAccessType = {
   lastStartup: never;
   sendEditWarningShown: never;
   formattingWarningShown: never;
+  hasRegisterSupportForUnauthenticatedDelivery: never;
+  masterKeyLastRequestTime: never;
+  versionedExpirationTimer: never;
+  primarySendsSms: never;
 };
 
 export type StorageInterface = {

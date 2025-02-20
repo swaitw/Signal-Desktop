@@ -8,7 +8,7 @@ import type { ReadonlyDeep } from 'type-fest';
 import * as Errors from '../../types/errors';
 import type { AttachmentType } from '../../types/Attachment';
 import type { DraftBodyRanges } from '../../types/BodyRange';
-import type { MessageAttributesType } from '../../model-types.d';
+import type { ReadonlyMessageAttributesType } from '../../model-types.d';
 import type {
   MessageChangedActionType,
   MessageDeletedActionType,
@@ -25,7 +25,7 @@ import { isAciString } from '../../util/isAciString';
 import * as log from '../../logging/log';
 import { TARGETED_CONVERSATION_CHANGED } from './conversations';
 import { SIGNAL_ACI } from '../../types/SignalConversation';
-import dataInterface from '../../sql/Client';
+import { DataReader, DataWriter } from '../../sql/Client';
 import { ReadStatus } from '../../messages/MessageReadStatus';
 import { SendStatus } from '../../messages/MessageSendState';
 import { SafetyNumberChangeSource } from '../../components/SafetyNumberChangeDialog';
@@ -36,7 +36,7 @@ import { blockSendUntilConversationsAreVerified } from '../../util/blockSendUnti
 import { deleteStoryForEveryone as doDeleteStoryForEveryone } from '../../util/deleteStoryForEveryone';
 import { deleteGroupStoryReplyForEveryone as doDeleteGroupStoryReplyForEveryone } from '../../util/deleteGroupStoryReplyForEveryone';
 import { enqueueReactionForSend } from '../../reactions/enqueueReactionForSend';
-import { __DEPRECATED$getMessageById } from '../../messages/getMessageById';
+import { getMessageById } from '../../messages/getMessageById';
 import { markOnboardingStoryAsRead } from '../../util/markOnboardingStoryAsRead';
 import { markViewed } from '../../services/MessageUpdater';
 import { queueAttachmentDownloads } from '../../util/queueAttachmentDownloads';
@@ -69,7 +69,7 @@ import {
   conversationQueueJobEnum,
 } from '../../jobs/conversationJobQueue';
 import { ReceiptType } from '../../types/Receipt';
-import { singleProtoJobQueue } from '../../jobs/singleProtoJobQueue';
+import { cleanupMessages } from '../../util/cleanup';
 
 export type StoryDataType = ReadonlyDeep<
   {
@@ -79,7 +79,7 @@ export type StoryDataType = ReadonlyDeep<
     messageId: string;
     startedDownload?: boolean;
   } & Pick<
-    MessageAttributesType,
+    ReadonlyMessageAttributesType,
     | 'bodyRanges'
     | 'canReplyToStory'
     | 'conversationId'
@@ -124,31 +124,33 @@ export type AddStoryData = ReadonlyDeep<
   | undefined
 >;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-export type RecipientsByConversation = Record<
-  string, // conversationId
-  {
-    serviceIds: Array<ServiceIdString>;
+export type RecipientEntry = ReadonlyDeep<{
+  serviceIds: Array<ServiceIdString>;
 
-    byDistributionId?: Record<
-      StoryDistributionIdString,
-      {
-        serviceIds: Array<ServiceIdString>;
-      }
-    >;
-  }
+  byDistributionId?: Record<
+    StoryDistributionIdString,
+    {
+      serviceIds: Array<ServiceIdString>;
+    }
+  >;
+}>;
+
+export type RecipientsByConversation = ReadonlyDeep<
+  Record<
+    string, // conversationId
+    RecipientEntry
+  >
 >;
 
 // State
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-export type StoriesStateType = Readonly<{
+export type StoriesStateType = ReadonlyDeep<{
   addStoryData: AddStoryData;
   hasAllStoriesUnmuted: boolean;
   lastOpenedAtTimestamp: number | undefined;
   replyState?: Readonly<{
     messageId: string;
-    replies: Array<MessageAttributesType>;
+    replies: Array<ReadonlyMessageAttributesType>;
   }>;
   selectedStoryData?: SelectedStoryDataType;
   sendStoryModalData?: RecipientsByConversation;
@@ -188,14 +190,13 @@ type ListMembersVerified = ReadonlyDeep<{
   };
 }>;
 
-// eslint-disable-next-line local-rules/type-alias-readonlydeep
-type LoadStoryRepliesActionType = {
+type LoadStoryRepliesActionType = ReadonlyDeep<{
   type: typeof LOAD_STORY_REPLIES;
   payload: {
     messageId: string;
-    replies: Array<MessageAttributesType>;
+    replies: Array<ReadonlyMessageAttributesType>;
   };
-};
+}>;
 
 type MarkStoryReadActionType = ReadonlyDeep<{
   type: typeof MARK_STORY_READ;
@@ -285,7 +286,7 @@ function deleteGroupStoryReply(
   messageId: string
 ): ThunkAction<void, RootStateType, unknown, StoryReplyDeletedActionType> {
   return async dispatch => {
-    await window.Signal.Data.removeMessage(messageId, { singleProtoJobQueue });
+    await DataWriter.removeMessage(messageId, { cleanupMessages });
     dispatch({
       type: STORY_REPLY_DELETED,
       payload: messageId,
@@ -337,7 +338,7 @@ function loadStoryReplies(
 ): ThunkAction<void, RootStateType, unknown, LoadStoryRepliesActionType> {
   return async (dispatch, getState) => {
     const conversation = getConversationSelector(getState())(conversationId);
-    const replies = await dataInterface.getOlderMessagesByConversation({
+    const replies = await DataReader.getOlderMessagesByConversation({
       conversationId,
       limit: 9000,
       storyId: messageId,
@@ -381,7 +382,7 @@ function markStoryRead(
       return;
     }
 
-    const message = await __DEPRECATED$getMessageById(messageId);
+    const message = await getMessageById(messageId);
 
     if (!message) {
       log.warn(`markStoryRead: no message found ${messageId}`);
@@ -420,11 +421,7 @@ function markStoryRead(
     const storyReadDate = Date.now();
 
     message.set(markViewed(message.attributes, storyReadDate));
-    drop(
-      dataInterface.saveMessage(message.attributes, {
-        ourAci: window.textsecure.storage.user.getCheckedAci(),
-      })
-    );
+    drop(window.MessageCache.saveMessage(message.attributes));
 
     const conversationId = message.get('conversationId');
 
@@ -459,7 +456,7 @@ function markStoryRead(
       );
     }
 
-    await dataInterface.addNewStoryRead({
+    await DataWriter.addNewStoryRead({
       authorId,
       conversationId: message.attributes.conversationId,
       storyId: messageId,
@@ -520,7 +517,7 @@ function queueStoryDownload(
       return;
     }
 
-    const message = await __DEPRECATED$getMessageById(storyId);
+    const message = await getMessageById(storyId);
 
     if (message) {
       // We want to ensure that we re-hydrate the story reply context with the
@@ -532,10 +529,11 @@ function queueStoryDownload(
         payload: storyId,
       });
 
-      const updatedFields = await queueAttachmentDownloads(message.attributes);
-      if (updatedFields) {
-        message.set(updatedFields);
+      const wasUpdated = await queueAttachmentDownloads(message);
+      if (wasUpdated) {
+        await window.MessageCache.saveMessage(message);
       }
+
       return;
     }
 
@@ -1395,7 +1393,7 @@ function removeAllContactStories(
     const messages = (
       await Promise.all(
         messageIds.map(async messageId => {
-          const message = await __DEPRECATED$getMessageById(messageId);
+          const message = await getMessageById(messageId);
 
           if (!message) {
             log.warn(`${logId}: no message found ${messageId}`);
@@ -1409,7 +1407,7 @@ function removeAllContactStories(
 
     log.info(`${logId}: removing ${messages.length} stories`);
 
-    await dataInterface.removeMessages(messageIds, { singleProtoJobQueue });
+    await DataWriter.removeMessages(messageIds, { cleanupMessages });
 
     dispatch({
       type: 'NOOP',

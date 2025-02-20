@@ -50,8 +50,14 @@
   "icu:privacyPolicy": {
     "messageformat": "תנאים ומדיניות פרטיות"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple silicon"
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
   },
   "icu:copyErrorAndQuit": {
     "messageformat": "העתק שגיאה וצא"
@@ -80,11 +86,11 @@
   "icu:databaseError__startOldVersion": {
     "messageformat": "הגרסה של מסד הנתונים שלך לא תואמת לגרסה זו של Signal. יש לוודא שפתחת את הגרסה החדשה ביותר של Signal במחשב שלך."
   },
-  "icu:databaseError__recover__detail": {
-    "messageformat": "A database error occurred. You can copy the error and contact Signal support to help fix the issue. If you need to use Signal right away, you can attempt to recover your data.\n\nContact support by visiting: {link}"
+  "icu:databaseError__safeStorageBackendChange": {
+    "messageformat": "לא הצלחנו לגשת למפתח ההצפנה של מסד הנתונים כי מחזיק המפתחות להצפנת מערכת ההפעלה השתנה מ–{previousBackend} ל–{currentBackend}. זה יכול להתרחש אם סביבת שולחן העבודה משתנה, למשל בין GNOME ל–KDE.\n\nיש לעבור לסביבת שולחן העבודה הקודמת."
   },
-  "icu:databaseError__recover__button": {
-    "messageformat": "Recover data"
+  "icu:databaseError__safeStorageBackendChangeWithPreviousFlag": {
+    "messageformat": "לא הצלחנו לגשת למפתח ההצפנה של מסד הנתונים כי מחזיק המפתחות להצפנת מערכת ההפעלה השתנה מ–{previousBackend} ל–{currentBackend}. זה יכול להתרחש אם סביבת שולחן העבודה משתנה, למשל בין GNOME ל–KDE.\n\nיש לעבור לסביבת שולחן העבודה הקודמת כדי לנסות להריץ את Signal עם דגל שורת הפקודה --password-store=\"{previousBackendFlag}\""
   },
   "icu:mainMenuFile": {
     "messageformat": "&קובץ"
@@ -575,8 +581,14 @@
   "icu:decryptionErrorToast": {
     "messageformat": "שולחן העבודה נתקל בשגיאת פיענוח מאת {name}, מכשיר {deviceId}"
   },
-  "icu:decryptionErrorToastAction": {
+  "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "הגש יומן"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "אי אפשר לבחור תמונות וסרטונים יחד עם קבצים."
@@ -674,6 +686,9 @@
   "icu:search": {
     "messageformat": "חיפוש"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "חיפוש בצ'אטים שלא נקראו"
+  },
   "icu:clearSearch": {
     "messageformat": "נקה חיפוש"
   },
@@ -683,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "אין תוצאות עבור \"{searchTerm}\""
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "אין תוצאות עבור ״{searchTerm}״ בצ׳אטים שלא נקראו"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "אין צ׳אטים שלא נקראו"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "אנשי קשר של מסרונים/מסרוני MMS אינם זמינים בשולחן עבודה."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "אין תוצאות עבור \"{searchTerm}\" בשיחה {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "מסונן לפי צ׳אטים שלא נקראו"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "סינון לפי צ׳אטים שלא נקראו"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "ניקוי מסנן"
   },
   "icu:conversationsHeader": {
     "messageformat": "צ'אטים"
@@ -782,11 +812,14 @@
   "icu:voiceNoteError": {
     "messageformat": "הייתה שגיאה עם מקליט הקול."
   },
-  "icu:attachmentSaved": {
-    "messageformat": "צרופה נשמרה."
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {קובץ מצורף נשמר} two {{count,number} קבצים מצורפים נשמרו} many {{count,number} קבצים מצורפים נשמרו} other {{count,number} קבצים מצורפים נשמרו}}"
   },
   "icu:attachmentSavedShow": {
     "messageformat": "הראה בתיקייה"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {לא ניתן לשמור את הקובץ המצורף, מכיוון שההורדה שלו עדיין לא הסתיימה} two {לא ניתן לשמור את הקבצים המצורפים, מכיוון שההורדה של {count,number} עדיין לא הסתיימה} many {לא ניתן לשמור את הקבצים המצורפים, מכיוון שההורדה של {count,number} עדיין לא הסתיימה} other {לא ניתן לשמור את הקבצים המצורפים, מכיוון שההורדה של {count,number} עדיין לא הסתיימה}}"
   },
   "icu:you": {
     "messageformat": "את/ה"
@@ -821,11 +854,11 @@
   "icu:mute": {
     "messageformat": "השתקה"
   },
-  "icu:cannotUpdateDetail": {
-    "messageformat": "Signal לא היה יכול להתעדכן. {retry} או בקר בכתובת {url} כדי להתקין אותו באופן ידני. לאחר מכן, {support} לגבי הבעיה הזאת"
+  "icu:cannotUpdateDetail-v2": {
+    "messageformat": "Signal לא הצליחה להתעדכן. אפשר <retryUpdateButton>לנסות לעדכן שוב</retryUpdateButton> או לבקר בכתובת {url} כדי להתקין באופן ידני. לאחר מכן, יש <contactSupportLink>ליצור קשר עם התמיכה</contactSupportLink> לגבי הבעיה הזו."
   },
-  "icu:cannotUpdateRequireManualDetail": {
-    "messageformat": "Signal לא היה יכול להתעדכן. בקר בכתובת {url} כדי להתקין אותו באופן ידני. לאחר מכן, {support} לגבי הבעיה הזאת"
+  "icu:cannotUpdateRequireManualDetail-v2": {
+    "messageformat": "Signal לא הצליחה להתעדכן. אפשר לבקר בכתובת {url} כדי להתקין באופן ידני. לאחר מכן, יש <contactSupportLink>ליצור קשר עם התמיכה</contactSupportLink> לגבי הבעיה הזו."
   },
   "icu:readOnlyVolume": {
     "messageformat": "Signal Desktop ככל הנראה בהסגר macOS, ולא יוכל להתעדכן באופן אוטומטי. אנא נסה להעביר את  {app} אל {folder} עם Finder."
@@ -938,8 +971,8 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "הערה"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "הצג מדיה אחרונה"
+  "icu:allMediaMenuItem": {
+    "messageformat": "כל המדיה"
   },
   "icu:back": {
     "messageformat": "הקודם"
@@ -986,17 +1019,17 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "מידע"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "מחיקת הודעות"
+  "icu:deleteConversation": {
+    "messageformat": "מחיקה"
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "למחוק הודעות?"
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "למחוק צ'אט?"
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "כל ההודעות בצ׳אט הזה יימחקו ממכשיר זה. עדיין תהיה לך אפשרות לחפש את הצ׳אט הזה אחרי מחיקת ההודעות."
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "כל ההודעות בצ׳אט הזה יימחקו ממכשיר זה."
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "כל ההודעות בצ׳אט הזה יימחקו מכל המכשירים שלך. עדיין תהיה לך אפשרות לחפש את הצ׳אט הזה אחרי מחיקת ההודעות."
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "כל ההודעות בצ׳אט הזה יימחקו מכל המכשירים שלך."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "עזיבת קבוצה"
@@ -1088,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "תמונה נשלחה בצ'אט"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "בהורדה: {downloaded} מתוך {total}"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "ראות איקון שיש לתמונה זו כיתוב"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "פתיחת הקובץ המצורף הזה בתצוגה גדולה יותר"
+  },
+  "icu:startDownload": {
+    "messageformat": "התחלת הורדה"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "ביטול הורדה"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {פריט {count,number}} two {{count,number} פריטים} many {{count,number} פריטים} other {{count,number} פריטים}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "המדיה הזו לא זמינה יותר."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "מדיה זו אינה זמינה"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "מדיה לא זמינה"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "למידע נוסף"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "קובץ לא זמין"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "הודעה זו אינה שלמה"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "סטיקר לא זמין"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "הודעה קולית לא זמינה"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "קובץ לא זמין"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "הודעה מלאה לא זמינה"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "מדיה לא זמינה"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "סטיקר לא זמין"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "הודעה קולית לא זמינה"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "הקובץ הזה לא הועבר מהטלפון שלך כשהמכשיר הזה קושר. לא ניתן לסנכרן קבצים ומדיה שיותר ישנים מ–45 ימים בזמן קישור המכשיר."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "הטקסט המלא בהודעה זו לא הועבר מהטלפון שלך כשהמכשיר הזה קושר. לא ניתן לסנכרן הודעות טקסט ארוכות שיותר ישנות מ–45 ימים בזמן קישור המכשיר."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "המדיה הזו לא הועברה מהטלפון שלך כשהמכשיר הזה קושר. לא ניתן לסנכרן מדיה ישנה יותר מ–45 ימים בזמן קישור המכשיר."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "הסטיקר הזה לא הועבר מהטלפון שלך כשהמכשיר הזה קושר. לא ניתן לסנכרן קבצים ומדיה שיותר ישנים מ–45 ימים בזמן קישור המכשיר."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "ההודעה הקולית הזו לא הועברה מהטלפון שלך כשהמכשיר הזה קושר. לא ניתן לסנכרן קבצים ומדיה שיותר ישנים מ–45 ימים בזמן קישור המכשיר."
   },
   "icu:save": {
     "messageformat": "שמור"
@@ -1101,7 +1203,7 @@
     "messageformat": "מכשירים מקושרים"
   },
   "icu:linkNewDevice": {
-    "messageformat": "קשר מכשיר חדש"
+    "messageformat": "קישור מכשיר חדש"
   },
   "icu:Install__learn-more": {
     "messageformat": "למד עוד"
@@ -1119,10 +1221,7 @@
     "messageformat": "הגדרות"
   },
   "icu:Install__instructions__3": {
-    "messageformat": "הקש על {plusButton} (Android) או {linkNewDevice} (iPhone)"
-  },
-  "icu:Install__qr-failed-load": {
-    "messageformat": "קוד ה–QR לא הצליח להיטען. כדאי לבדוק את חיבור האינטרנט ולנסות שוב. <retry>ניסיון חוזר</retry>"
+    "messageformat": "לחיצה על {linkNewDevice}"
   },
   "icu:Install__qr-failed-load__error--timeout": {
     "messageformat": "קוד ה–QR לא הצליח להיטען. יש לבדוק את החיבור שלך ולנסות שוב."
@@ -1135,6 +1234,9 @@
   },
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "נסה שוב"
+  },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "רענון קוד"
   },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "לעזרה"
@@ -1153,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "שם מכשיר"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "כדי לשנות את שם המכשיר הזה, יש לפתוח את Signal בטלפון ולנווט אל הגדרות > מכשירים מקושרים"
   },
   "icu:chooseDeviceName": {
     "messageformat": "בחר שם של מכשיר זה"
@@ -1197,10 +1302,10 @@
     "messageformat": "חייג שוב"
   },
   "icu:calling__join": {
-    "messageformat": "הצטרף לשיחה"
+    "messageformat": "הצטרפות לשיחה"
   },
   "icu:calling__return": {
-    "messageformat": "חזור אל השיחה"
+    "messageformat": "חזרה לשיחה"
   },
   "icu:calling__lobby-automatically-muted-because-there-are-a-lot-of-people": {
     "messageformat": "המיקרופון מושתק עקב גודל השיחה"
@@ -1214,9 +1319,6 @@
   "icu:calling__cant-join": {
     "messageformat": "אי אפשר להצטרף לשיחה"
   },
-  "icu:calling__dialog-already-in-call": {
-    "messageformat": "את/ה כבר בשיחה."
-  },
   "icu:calling__call-link-connection-issues": {
     "messageformat": "לא ניתן למשוך את המידע של לינק השיחה. כדאי לבדוק את חיבור הרשת שלך ולנסות שוב."
   },
@@ -1228,6 +1330,9 @@
   },
   "icu:calling__call-link-default-title": {
     "messageformat": "שיחת Signal"
+  },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "לא ניתן למחוק לינק. כדאי לבדוק את החיבור שלך ולנסות שוב."
   },
   "icu:calling__join-request-denied": {
     "messageformat": "הבקשה שלך להצטרף לשיחה הזו נדחתה."
@@ -1370,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, one {{first}, {second}, ועוד {others,number} נמצאים בשיחה זו} two {{first}, {second}, ועוד {others,number} נמצאים בשיחה זו} many {{first}, {second}, ועוד {others,number} נמצאים בשיחה זו} other {{first}, {second}, ועוד {others,number} נמצאים בשיחה זו}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {אדם {count,number} נמצא בשיחה זו} two {{count,number} אנשים נמצאים בשיחה זו} many {{count,number} אנשים נמצאים בשיחה זו} other {{count,number} אנשים נמצאים בשיחה זו}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "Signal יצלצל אל {person}"
   },
@@ -1400,20 +1508,20 @@
   "icu:calling__in-this-call": {
     "messageformat": "{people, plural, one {בשיחה זו · אדם {people,number}} two {בשיחה זו · {people,number} אנשים} many {בשיחה זו · {people,number} אנשים} other {בשיחה זו · {people,number} אנשים}}"
   },
-  "icu:calling__you-have-blocked": {
+  "icu:calling__blocked-participant": {
     "messageformat": "חסמת את {name}"
   },
-  "icu:calling__blocked-participant": {
-    "messageformat": "{name} is blocked"
-  },
   "icu:calling__block-info-title": {
-    "messageformat": "{name} is blocked"
+    "messageformat": "חסמת את {name}"
   },
   "icu:calling__block-info": {
-    "messageformat": "You won’t receive their audio or video and they won’t receive yours."
+    "messageformat": "לא תקבל שמע או וידאו והצד השני לא יקבל את שלך."
   },
   "icu:calling__missing-media-keys": {
     "messageformat": "לא ניתן לקבל שמע ווידאו מאת {name}"
+  },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "לא ניתן לקבל אודיו ווידאו"
   },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "זה יכול להיות בגלל שהיא או הוא לא אישרו את שינוי מספר הבטיחות שלך, או שיש בעיה עם המכשיר שלהם, או שהם חסמו אותך."
@@ -1438,6 +1546,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal משתף את {window}."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "שיתוף המסך של Signal פעיל"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "מתחבר מחדש…"
@@ -1524,10 +1635,10 @@
     "messageformat": "למחוק את כל הנתונים?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "למחוק את כל הנתונים וההודעות מגרסה זו של Signal לשולחן העבודה? תמיד אפשר לקשר מחדש את שולחן העבודה הזה, אבל ההודעות שלך לא ישוחזרו. חשבון Signal שלך והנתונים בטלפון שלך או במכשירים מקושרים אחרים לא יימחקו."
+    "messageformat": "למחוק את כל הנתונים וההודעות מגרסה זו של Signal לשולחן העבודה? חשבון Signal שלך והנתונים בטלפון שלך או במכשירים מקושרים אחרים לא יימחקו."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "מתנתק ומוחק את כל הנתונים"
+    "messageformat": "התנתקות ומחיקת כל הנתונים בתהליך…"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "יש לך נתונים מיושנים מהתקנה קודמת של Signal Desktop. אם בא לך להמשיך, הם יימחקו ו–Signal תתחיל מאפס."
@@ -1621,6 +1732,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "אתמול {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "יתכן ש–Signal לא מצליחה לעבד הודעה נכנסת."
   },
   "icu:messageBodyTooLong": {
     "messageformat": "גוף ההודעה ארוך מדי."
@@ -1834,9 +1948,6 @@
   },
   "icu:autoUpdateRetry": {
     "messageformat": "נסה שוב עדכון"
-  },
-  "icu:autoUpdateContactSupport": {
-    "messageformat": "צור קשר עם התמיכה"
   },
   "icu:autoUpdateNewVersionMessage": {
     "messageformat": "לחץ כדי להפעיל מחדש את Signal"
@@ -2625,10 +2736,10 @@
     "messageformat": "דחה"
   },
   "icu:declinedIncomingAudioCall": {
-    "messageformat": "דחית שיחה קולית"
+    "messageformat": "שיחה קולית נדחתה"
   },
   "icu:declinedIncomingVideoCall": {
-    "messageformat": "דחית שיחת וידאו"
+    "messageformat": "שיחת וידאו נדחתה"
   },
   "icu:acceptedIncomingAudioCall": {
     "messageformat": "שיחה קולית נכנסת"
@@ -2661,10 +2772,10 @@
     "messageformat": "Signal תמשיך לפעול באזור ההתראות. אפשר לשנות את זה בהגדרות של Signal."
   },
   "icu:incomingAudioCall": {
-    "messageformat": "שיחה קולית נכנסת…"
+    "messageformat": "שיחה קולית נכנסת"
   },
   "icu:incomingVideoCall": {
-    "messageformat": "שיחת וידאו נכנסת…"
+    "messageformat": "שיחת וידאו נכנסת"
   },
   "icu:outgoingAudioCall": {
     "messageformat": "שיחה קולית יוצאת"
@@ -2686,6 +2797,9 @@
   },
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, one {{ringer} מתקשר/ת אליך, {first}, {second} ואל {remaining,number} אחר} two {{ringer} מתקשר/ת אליך, {first}, {second} ואל {remaining,number} אחרים} many {{ringer} מתקשר/ת אליך, {first}, {second} ואל {remaining,number} אחרים} other {{ringer} מתקשר/ת אליך, {first}, {second} ואל {remaining,number} אחרים}}"
+  },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "מתחבר…"
   },
   "icu:outgoingCallRinging": {
     "messageformat": "מצלצל…"
@@ -2714,6 +2828,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "לינק לשיחה"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "שיחה קבוצתית"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "מחכה שיכניסו אותך…"
   },
@@ -2728,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "מיקרופון מופעל"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "להוריד את היד?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "הורדה"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "צלצול מופעל"
@@ -2772,16 +2895,16 @@
     "messageformat": "{people, plural, one {{people,number} בשיחה} two {{people,number} בשיחה} many {{people,number} בשיחה} other {{people,number} בשיחה}}"
   },
   "icu:calling__call-notification__ended": {
-    "messageformat": "השיחה הקבוצתית הסתיימה"
+    "messageformat": "שיחת הווידאו הסתיימה"
   },
   "icu:calling__call-notification__started-by-someone": {
-    "messageformat": "שיחה קבוצתית התחילה"
+    "messageformat": "שיחת וידאו התחילה"
   },
   "icu:calling__call-notification__started-by-you": {
-    "messageformat": "התחלת שיחה קבוצתית"
+    "messageformat": "התחלת שיחת וידאו"
   },
   "icu:calling__call-notification__started": {
-    "messageformat": "{name} התחיל/ה שיחה קבוצתית"
+    "messageformat": "{name} התחיל/ה שיחת וידאו"
   },
   "icu:calling__in-another-call-tooltip": {
     "messageformat": "אתה כבר בשיחה"
@@ -2970,7 +3093,7 @@
     "messageformat": "אי אפשר להצטרף אל הקבוצה הזאת באמצעות קישור קבוצה מאחר שמנהל/ת הסיר/ה אותך."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "מנהלן של קבוצה זו חייב לאשר את בקשתך לפני שתוכל להצטרף אל קבוצה זו. במקרה שבקשתך אושרה, השם והתמונה שלך ישותפו עם חברי הקבוצה."
+    "messageformat": "מנהלן של קבוצה זו חייב לאשר את בקשתך לפני שתוכל להצטרף אל קבוצה זו. כאשר אתה מבקש להצטרף, השם והתמונה שלך ישותפו עם חברי הקבוצה."
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "הצטרף"
@@ -3347,11 +3470,8 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "בקשה להצטרף אל הקבוצה מאת {joinerName} נדחתה."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} ביקש/ה וביטל/ה בקשה להצטרף באמצעות קישור הקבוצה"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} ביקש/ה וביטל/ה {numberOfRequests,number} בקשות להצטרף באמצעות קישור הקבוצה"
+  "icu:GroupV2--admin-approval-bounce--pluralized": {
+    "messageformat": "{numberOfRequests, plural, one {{joinerName} ביקש/ה וביטל/ה את הבקשה להצטרף באמצעות לינק הקבוצה} two {{joinerName} ביקש/ה וביטל/ה {numberOfRequests,number} בקשות להצטרף דרך הלינק הקבוצתי.} many {{joinerName} ביקש/ה וביטל/ה {numberOfRequests,number} בקשות להצטרף באמצעות קישור הקבוצה} other {{joinerName} ביקש/ה וביטל/ה {numberOfRequests,number} בקשות להצטרף דרך הלינק הקבוצתי.}}"
   },
   "icu:GroupV2--group-link-add--disabled--you": {
     "messageformat": "הפעלת את קישור הקבוצה עם אישור מנהלן מושבת."
@@ -3509,6 +3629,9 @@
   "icu:next": {
     "messageformat": "הבא"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "זה עשוי לקחת כמה דקות"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "תרום אל Signal"
   },
@@ -3526,6 +3649,108 @@
   },
   "icu:BadgeSustainerInstructions__instructions__3": {
     "messageformat": "יש ללחוץ על ״תרומה ל-Signal״ ולעשות מנוי"
+  },
+  "icu:BackupImportScreen__title": {
+    "messageformat": "מסנכרנים הודעות"
+  },
+  "icu:BackupImportScreen__progressbar-hint": {
+    "messageformat": "מורידים {currentSize} מתוך {totalSize} ({fractionComplete,number,percent})…"
+  },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "משלימים את העברת ההודעות…"
+  },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "מתבצע ביטול…"
+  },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "מתכוננים להורדה…"
+  },
+  "icu:BackupImportScreen__description": {
+    "messageformat": "זה עשוי לקחת כמה דקות"
+  },
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "ביטול"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "הודעות ופרטי צ׳אט מוגנים באמצעות הצפנה מקצה לקצה, כולל תהליך הסנכרון. <learnMoreLink>למידע נוסף</learnMoreLink>"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "לבטל את הקישור למכשיר?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "אם תבחר/י לבטל, המכשיר הזה לא יקושר ולא יועברו הודעות או מדיה."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "המשך קישור"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "ביטול קישור"
+  },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "שגיאה בהעברת ההודעות שלך"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "לא היה ניתן להעביר את ההודעות שלך. יש לבדוק את חיבור האינטרנט שלך ולנסות שוב."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "לא ניתן היה להעביר את ההודעות שלך עקב שגיאה. יש לנסות שוב באמצעות קישור מחדש של שולחן העבודה הזה."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "נסה שוב"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "דלג"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "לדלג על העברת הודעות?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "אם תבחר/י לדלג, לא תהיה לך גישה לאף אחת מההודעות או המדיה שלך במכשיר זה. אפשר להתחיל העברה חדשה לאחר הדילוג מתוך הגדרות > צ׳אטים > העברה."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "ביטול"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "מדיה בשחזור"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "שחזור הושהה"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{currentSize} מתוך {totalSize} שוחזרו"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "הורדת המדיה תמשיך ברקע"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "השהיית העברה"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "המשך העברה"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "ביטול העברה"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "עוד אפשרויות"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "שחזור הושלם"
+  },
+  "icu:BackupMediaDownloadProgress__progressbar-hint": {
+    "messageformat": "{currentSize} מתוך {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "לבטל העברת מדיה?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "שחזור ההודעות והמדיה שלך לא הושלם. אם תבחר/י לבטל, אפשר לבצע העברה שוב מתוך ההגדרות."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "המשך העברה"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "ביטול העברה"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "הרחב"
@@ -3575,8 +3800,8 @@
   "icu:ContactModal--remove-from-group": {
     "messageformat": "הסרה מהקבוצה"
   },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "אתה כבר בשיחה"
+  "icu:ContactModal--voice": {
+    "messageformat": "שיחה קולית"
   },
   "icu:showChatColorEditor": {
     "messageformat": "צבע צ'אט"
@@ -3759,7 +3984,7 @@
     "messageformat": "אפס קישור"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "אשר חברי קבוצה חדשים"
+    "messageformat": "דרישת אישור מנהל/ת"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "דרוש מנהלן כדי לאשר הצטרפות של חברי קבוצה חדשים באמצעות קישור הקבוצה"
@@ -3947,11 +4172,11 @@
   "icu:MessageAudio--playbackRatep5": {
     "messageformat": "0.5"
   },
-  "icu:emptyInboxMessage": {
-    "messageformat": "לחץ על {composeIcon} למעלה וחפש אחר אנשי הקשר או הקבוצות שלך כדי לשלוח הודעה."
+  "icu:emptyInbox__title": {
+    "messageformat": "אין צ׳אטים"
   },
-  "icu:composeIcon": {
-    "messageformat": "כפתור חַבֵּר"
+  "icu:emptyInbox__subtitle": {
+    "messageformat": "צ'אטים אחרונים יופיעו כאן."
   },
   "icu:ForwardMessageModal__title": {
     "messageformat": "העברה אל"
@@ -4074,7 +4299,7 @@
     "messageformat": "איפוס כל צבעי הצ'אט"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "אפס ברירת מחדל"
+    "messageformat": "איפוס צבעי ברירת מחדל"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "אפס"
@@ -4394,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "בחר צבע"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "ניסיון הורדה חוזר"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "נסה שוב"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "יצגן קבוצה"
   },
@@ -4579,6 +4810,15 @@
   },
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal חווה קשיים טכניים. אנו עובדים קשות כדי לשחזר את השירות מהר ככל האפשר."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "נדרש עדכון"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "כדי להשלים את סנכרון ההודעות שלך, יש לעדכן את Signal לשולחן העבודה כעת."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "עדכן"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "נדרש עדכון"
@@ -4841,6 +5081,12 @@
   "icu:Stories__list-empty": {
     "messageformat": "אין סטוריז מהזמן האחרון להראות כרגע"
   },
+  "icu:Stories__list__empty--title": {
+    "messageformat": "אין סטוריז"
+  },
+  "icu:Stories__list__empty--subtitle": {
+    "messageformat": "עדכונים חדשים יופיעו כאן."
+  },
   "icu:Stories__list--sending": {
     "messageformat": "שולחים…"
   },
@@ -4855,6 +5101,9 @@
   },
   "icu:Stories__placeholder--text": {
     "messageformat": "אפשר ללחוץ כדי להציג סטורי"
+  },
+  "icu:Stories__placeholder-with-icon--text-2": {
+    "messageformat": "יש ללחוץ <newStoryButtonIcon></newStoryButtonIcon> כדי להוסיף עדכון."
   },
   "icu:Stories__from-to-group": {
     "messageformat": "{name} אל {group}"
@@ -5096,7 +5345,10 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "תשובות"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
+  "icu:StoryViewsNRepliesModal__reacted--you": {
+    "messageformat": "הגבת לסטורי"
+  },
+  "icu:StoryViewsNRepliesModal__reacted--someone-else": {
     "messageformat": "הגיב/ה לסטורי"
   },
   "icu:StoryViewsNRepliesModal__not-a-member": {
@@ -5115,7 +5367,7 @@
     "messageformat": "סטורי"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "הצגת סטוריז"
+    "messageformat": "ביטול הסתרת סטורי"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "הסתרת סטורי"
@@ -5388,17 +5640,32 @@
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
     "messageformat": "זה ימחק לצמיתות את כל היסטוריית השיחות"
   },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "זה ימחק לצמיתות את כל היסטוריית השיחות. לינקים שיצרת לשיחות לא יעבדו יותר לאנשים שקיבלו אותם. "
+  },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "נקה"
   },
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "שיחות אחרונות נמחקו"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "אפשר ללחוץ כדי להציג או להתחיל שיחה"
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "לא כל הלינקים לשיחות נמחקו. כדאי לבדוק את החיבור שלך ולנסות שוב."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "לא כל היסטוריית השיחות נמחקה. כדאי לבדוק את החיבור שלך ולנסות שוב."
+  },
+  "icu:CallsTab__EmptyStateText--with-icon-2": {
+    "messageformat": "יש ללחוץ על <newCallButtonIcon></newCallButtonIcon> כדי להתחיל שיחה קולית או שיחת וידאו חדשה."
+  },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "חיפוש שיחות שלא נענו"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "חיפוש"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "סינון לפי שיחות שלא נענו"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "סינון לפי שיחות שלא נענו"
@@ -5406,11 +5673,20 @@
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "עורר"
   },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "אין שיחות אחרונות. כדי להתחיל, אפשר להתקשר לחבר או חברה."
+  "icu:CallsList__EmptyState--noQuery__title": {
+    "messageformat": "אין שיחות"
+  },
+  "icu:CallsList__EmptyState--noQuery__subtitle": {
+    "messageformat": "שיחות אחרונות יופיעו כאן."
   },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "אין תוצאות עבור ״{query}״"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "אין תוצאות עבור ״{query}״ בשיחות שלא נענו"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "אין שיחות שלא נענו"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "יצירת לינק לשיחה"
@@ -5424,8 +5700,8 @@
   "icu:CallsList__ItemCallInfo--Missed": {
     "messageformat": "שיחה שלא נענתה"
   },
-  "icu:CallsList__ItemCallInfo--GroupCall": {
-    "messageformat": "שיחה קבוצתית"
+  "icu:CallsList__ItemCallInfo--Declined": {
+    "messageformat": "נדחתה"
   },
   "icu:CallsList__ItemCallInfo--CallLink": {
     "messageformat": "לינק לשיחה"
@@ -5437,7 +5713,7 @@
     "messageformat": "לעזוב את השיחה הנוכחית?"
   },
   "icu:CallsList__LeaveCallDialogBody": {
-    "messageformat": "צריך לעזוב את השיחה הנוכחית לפני הצטרפות לשיחה חדשה"
+    "messageformat": "צריך לעזוב את השיחה הנוכחית לפני התחלת או הצטרפות לשיחה חדשה."
   },
   "icu:CallsList__LeaveCallDialogButton--leave": {
     "messageformat": "עזוב שיחה"
@@ -5451,32 +5727,59 @@
   "icu:CallsNewCallButton--return": {
     "messageformat": "חזור"
   },
-  "icu:CallsNewCallButtonTooltip--in-another-call": {
-    "messageformat": "צריך לעזוב את השיחה הנוכחית לפני הצטרפות לשיחה חדשה"
-  },
-  "icu:CallHistory__Description--Default": {
-    "messageformat": "{type, select, Audio {{direction, select, Outgoing {שיחה קולית יוצאת} other {שיחה קולית נכנסת}}} Video {{direction, select, Outgoing {שיחת וידאו יוצאת} other {שיחת וידאו נכנסת}}} Group {{direction, select, Outgoing {שיחה קבוצתית יוצאת} other {שיחה קבוצתית נכנסת}}} other {{direction, select, Outgoing {שיחה יוצאת} other {שיחה נכנסת}}}}"
-  },
-  "icu:CallHistory__Description--Missed": {
-    "messageformat": "{type, select, Audio {שיחה קולית שלא נענתה} Video {שיחת וידאו שלא נענתה} Group {שיחה קבוצתית שלא נענתה} other {שיחה שלא נענתה}}"
-  },
-  "icu:CallHistory__Description--Unanswered": {
-    "messageformat": "{type, select, Audio {שיחה קולית שלא נענתה} Video {שיחת וידאו שלא נענתה} Group {שיחה קבוצתית לא נענתה} other {שיחה  לא נענתה}}"
-  },
-  "icu:CallHistory__Description--Declined": {
-    "messageformat": "{type, select, Audio {שיחה קולית נדחתה} Video {שיחת וידאו נדחתה} Group {שיחה קבוצתית נדחתה} other {שיחה  נדחתה}}"
-  },
   "icu:CallHistory__Description--Adhoc": {
     "messageformat": "לינק לשיחה"
   },
+  "icu:CallHistory__DescriptionVideoCall--Default": {
+    "messageformat": "{direction, select, Outgoing {שיחת וידאו יוצאת} other {שיחת וידאו נכנסת}}"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Missed": {
+    "messageformat": "שיחת וידאו שלא נענתה"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Unanswered": {
+    "messageformat": "שיחת וידאו שלא נענתה"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Declined": {
+    "messageformat": "שיחת וידאו נדחתה"
+  },
   "icu:CallLinkDetails__Join": {
     "messageformat": "הצטרפות"
+  },
+  "icu:CallLinkDetails__AddCallNameLabel": {
+    "messageformat": "הוספת שם שיחה"
+  },
+  "icu:CallLinkDetails__EditCallNameLabel": {
+    "messageformat": "עריכת שם שיחה"
+  },
+  "icu:CallLinkDetails__ApproveAllMembersLabel": {
+    "messageformat": "דרישת אישור מנהל/ת"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "לא ניתן לשנות את ההגדרה הזו בזמן שהשיחה פעילה"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "העתקת קישור"
   },
   "icu:CallLinkDetails__ShareLinkViaSignal": {
     "messageformat": "שיתוף לינק דרך Signal"
+  },
+  "icu:CallLinkDetails__DeleteLink": {
+    "messageformat": "מחיקת לינק"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Title": {
+    "messageformat": "למחוק לינק לשיחה?"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Body": {
+    "messageformat": "הלינק הזה לא יעבוד יותר לאף אחד."
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Cancel": {
+    "messageformat": "ביטול"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Delete": {
+    "messageformat": "מחיקה"
+  },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "לא ניתן למחוק את הלינק הזה בזמן שהשיחה פעילה"
   },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "פרטי לינק שיחה"
@@ -5487,17 +5790,29 @@
   "icu:CallLinkEditModal__AddCallNameLabel": {
     "messageformat": "הוספת שם שיחה"
   },
-  "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "אישור כל החברים"
+  "icu:CallLinkEditModal__EditCallNameLabel": {
+    "messageformat": "עריכת שם שיחה"
   },
-  "icu:CallLinkEditModal__ApproveAllMembers__Option--Off": {
+  "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
+    "messageformat": "דרישת אישור מנהל/ת"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "אישור כניסה"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "דחיית כניסה"
+  },
+  "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "כבוי"
   },
-  "icu:CallLinkEditModal__ApproveAllMembers__Option--On": {
+  "icu:CallLinkRestrictionsSelect__Option--On": {
     "messageformat": "מופעל"
   },
   "icu:CallLinkAddNameModal__Title": {
     "messageformat": "הוספת שם שיחה"
+  },
+  "icu:CallLinkAddNameModal__Title--Edit": {
+    "messageformat": "עריכת שם שיחה"
   },
   "icu:CallLinkAddNameModal__NameLabel": {
     "messageformat": "שם שיחה"
@@ -5542,10 +5857,19 @@
     "messageformat": "התאמות קטנות, תיקוני באגים ושיפורי ביצועים. תודה על השימוש ב-Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.16--0": {
-    "messageformat": "תיקנו באג שלא אפשר לכפתור מזעור השיחה להופיע בזמן שהשיחה מתחברת מחדש."
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "עכשיו אפשר להתאים את גודל הסרגל הצדי של רשימת הצ׳אטים במכשירים עם מסך מגע."
   },
-  "icu:WhatsNew__v7.17--0": {
-    "messageformat": "We wanted things to be slicker and quicker for sticker clickers, so we fixed a bug that sometimes prevented Signal from launching the sticker viewer if you tried to open a sticker pack link while the app was closed."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "תיקנו באג נדיר שמנע מחלק מהצ׳אטים להיפתח כהלכה."
+  },
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "עכשיו אפשר לקשר את מכשיר Signal העיקרי שלך לשולחן עבודה חדש ולהעביר איתך גם את היסטוריית הצ׳אט ואת 45 ימי המדיה האחרונים שלך."
+  },
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "עדכנו את הטקסט בכפתור של אפליקציית שולחן העבודה כדי שהוא יהיה תואם ל–Android ו–iOS."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

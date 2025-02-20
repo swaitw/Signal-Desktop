@@ -3,36 +3,47 @@
 
 import type { AudioDevice } from '@signalapp/ringrtc';
 
-export function findBestMatchingAudioDeviceIndex({
-  available,
-  preferred,
-}: Readonly<{
-  available: ReadonlyArray<AudioDevice>;
-  preferred: undefined | AudioDevice;
-}>): undefined | number {
+export function findBestMatchingAudioDeviceIndex(
+  {
+    available,
+    preferred,
+  }: Readonly<{
+    available: ReadonlyArray<AudioDevice>;
+    preferred: undefined | AudioDevice;
+  }>,
+  isWindows: boolean
+): undefined | number {
   if (!preferred) {
     return available.length > 0 ? 0 : undefined;
   }
 
+  // On Linux and Mac, the default device is at index 0.
+  // On Windows, there are two default devices, as presented by RingRTC:
+  // * The default communications device (for voice calls, at index 0)
+  // * the default device (for, e.g., media, at index 1)
   if (
     preferred.index === 0 ||
-    (preferred.index === 1 && available.length >= 2)
+    (isWindows && preferred.index === 1 && available.length >= 2)
   ) {
     return preferred.index;
   }
 
+  // Number of default devices at start of list to ignore.
+  const offset = isWindows ? 2 : 1;
+  const searchArr = available.slice(offset);
+
   if (preferred.uniqueId) {
-    const idMatchIndex = available.findIndex(
+    const idMatchIndex = searchArr.findIndex(
       d => d.uniqueId === preferred.uniqueId
     );
     if (idMatchIndex !== -1) {
-      return idMatchIndex;
+      return idMatchIndex + offset;
     }
   }
 
-  const nameMatchIndex = available.findIndex(d => d.name === preferred.name);
+  const nameMatchIndex = searchArr.findIndex(d => d.name === preferred.name);
   if (nameMatchIndex !== -1) {
-    return nameMatchIndex;
+    return nameMatchIndex + offset;
   }
 
   return available.length > 0 ? 0 : undefined;

@@ -19,6 +19,7 @@ import { getPreferredReactionEmoji as getPreferredReactionEmojiFromStoredValue }
 import { DurationInSeconds } from '../../util/durations';
 import * as Bytes from '../../Bytes';
 import { contactByEncryptedUsernameRoute } from '../../util/signalRoutes';
+import { isNotUpdatable } from '../../util/version';
 
 const DEFAULT_PREFERRED_LEFT_PANE_WIDTH = 320;
 
@@ -215,8 +216,13 @@ export const getRemoteBuildExpiration = createSelector(
 
 export const getAutoDownloadUpdate = createSelector(
   getItems,
-  (state: ItemsStateType): boolean =>
-    Boolean(state['auto-download-update'] ?? true)
+  (state: ItemsStateType): boolean => {
+    if (isNotUpdatable(window.getVersion())) {
+      return false;
+    }
+
+    return Boolean(state['auto-download-update'] ?? true);
+  }
 );
 
 export const getTextFormattingEnabled = createSelector(
@@ -247,4 +253,23 @@ export const getLocalDeleteWarningShown = createSelector(
   getItems,
   (state: ItemsStateType): boolean =>
     Boolean(state.localDeleteWarningShown ?? false)
+);
+
+export const getBackupMediaDownloadProgress = createSelector(
+  getItems,
+  (
+    state: ItemsStateType
+  ): {
+    totalBytes: number;
+    downloadedBytes: number;
+    isPaused: boolean;
+    downloadBannerDismissed: boolean;
+    isIdle: boolean;
+  } => ({
+    totalBytes: state.backupMediaDownloadTotalBytes ?? 0,
+    downloadedBytes: state.backupMediaDownloadCompletedBytes ?? 0,
+    isPaused: state.backupMediaDownloadPaused ?? false,
+    isIdle: state.backupMediaDownloadIdle ?? false,
+    downloadBannerDismissed: state.backupMediaDownloadBannerDismissed ?? false,
+  })
 );

@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 
-import type { MessageModel } from '../models/messages';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
 import * as Errors from '../types/errors';
 import * as log from '../logging/log';
 import { StartupQueue } from '../util/StartupQueue';
@@ -16,9 +16,11 @@ import { notificationService } from '../services/notifications';
 import { queueUpdateMessage } from '../util/messageBatcher';
 import { strictAssert } from '../util/assert';
 import { isAciString } from '../util/isAciString';
-import dataInterface from '../sql/Client';
+import { DataReader, DataWriter } from '../sql/Client';
+import { markRead } from '../services/MessageUpdater';
+import { MessageModel } from '../models/messages';
 
-const { removeSyncTaskById } = dataInterface;
+const { removeSyncTaskById } = DataWriter;
 
 export const readSyncTaskSchema = z.object({
   type: z.literal('ReadSync').readonly(),
@@ -51,7 +53,7 @@ async function maybeItIsAReactionReadSync(
   const { readSync } = sync;
   const logId = `ReadSyncs.onSync(timestamp=${readSync.timestamp})`;
 
-  const readReaction = await window.Signal.Data.markReactionAsRead(
+  const readReaction = await DataWriter.markReactionAsRead(
     readSync.senderAci,
     Number(readSync.timestamp)
   );
@@ -88,18 +90,16 @@ async function maybeItIsAReactionReadSync(
 }
 
 export async function forMessage(
-  message: MessageModel
+  message: ReadonlyMessageAttributesType
 ): Promise<ReadSyncAttributesType | null> {
-  const logId = `ReadSyncs.forMessage(${getMessageIdForLogging(
-    message.attributes
-  )})`;
+  const logId = `ReadSyncs.forMessage(${getMessageIdForLogging(message)})`;
 
   const sender = window.ConversationController.lookupOrCreate({
-    e164: message.get('source'),
-    serviceId: message.get('sourceServiceId'),
+    e164: message.source,
+    serviceId: message.sourceServiceId,
     reason: logId,
   });
-  const messageTimestamp = getMessageSentTimestamp(message.attributes, {
+  const messageTimestamp = getMessageSentTimestamp(message, {
     log,
   });
   const readSyncValues = Array.from(readSyncs.values());
@@ -129,9 +129,7 @@ export async function onSync(sync: ReadSyncAttributesType): Promise<void> {
   const logId = `ReadSyncs.onSync(timestamp=${readSync.timestamp})`;
 
   try {
-    const messages = await window.Signal.Data.getMessagesBySentAt(
-      readSync.timestamp
-    );
+    const messages = await DataReader.getMessagesBySentAt(readSync.timestamp);
 
     const found = messages.find(item => {
       const sender = window.ConversationController.lookupOrCreate({
@@ -150,11 +148,7 @@ export async function onSync(sync: ReadSyncAttributesType): Promise<void> {
 
     notificationService.removeBy({ messageId: found.id });
 
-    const message = window.MessageCache.__DEPRECATED$register(
-      found.id,
-      found,
-      'ReadSyncs.onSync'
-    );
+    const message = window.MessageCache.register(new MessageModel(found));
     const readAt = Math.min(readSync.readAt, Date.now());
     const newestSentAt = readSync.timestamp;
 
@@ -162,21 +156,26 @@ export async function onSync(sync: ReadSyncAttributesType): Promise<void> {
     //   timer to the time specified by the read sync if it's earlier than
     //   the previous read time.
     if (isMessageUnread(message.attributes)) {
-      // TODO DESKTOP-1509: use MessageUpdater.markRead once this is TS
-      message.markRead(readAt, { skipSave: true });
+      message.set(markRead(message.attributes, readAt, { skipSave: true }));
 
       const updateConversation = async () => {
-        const conversation = message.getConversation();
+        const conversation = window.ConversationController.get(
+          message.get('conversationId')
+        );
         strictAssert(conversation, `${logId}: conversation not found`);
         // onReadMessage may result in messages older than this one being
         //   marked read. We want those messages to have the same expire timer
         //   start time as this one, so we pass the readAt value through.
-        drop(conversation.onReadMessage(message, readAt, newestSentAt));
+        drop(
+          conversation.onReadMessage(message.attributes, readAt, newestSentAt)
+        );
       };
 
       // only available during initialization
       if (StartupQueue.isAvailable()) {
-        const conversation = message.getConversation();
+        const conversation = window.ConversationController.get(
+          message.get('conversationId')
+        );
         strictAssert(
           conversation,
           `${logId}: conversation not found (StartupQueue)`

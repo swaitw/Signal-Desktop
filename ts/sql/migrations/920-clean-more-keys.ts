@@ -41,9 +41,9 @@ export function updateToSchemaVersion920(
     );
 
     logger.info('updateToSchemaVersion920: Done with deletions');
-  })();
 
-  db.pragma('user_version = 920');
+    db.pragma('user_version = 920');
+  })();
 
   logger.info(
     'updateToSchemaVersion920: user_version set to 920. Starting vacuum...'
@@ -94,10 +94,8 @@ export function cleanKeys(
   }
 
   // Grab PNI-specific count
-  const [
-    beforeQuery,
-    beforeParams,
-  ] = sql`SELECT count(*) from ${tableName} WHERE ${idField} = ${pni}`;
+  const [beforeQuery, beforeParams] =
+    sql`SELECT count(*) from ${tableName} WHERE ${idField} = ${pni}`;
   const beforeKeys = db.prepare(beforeQuery).pluck(true).get(beforeParams);
   logger.info(`${logId}: Found ${beforeKeys} keys for PNI`);
 

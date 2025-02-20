@@ -291,10 +291,12 @@ const actions = () => ({
   retryDeleteForEveryone: action('retryDeleteForEveryone'),
   retryMessageSend: action('retryMessageSend'),
   saveAttachment: action('saveAttachment'),
+  saveAttachments: action('saveAttachments'),
   pushPanelForConversation: action('pushPanelForConversation'),
   showContactDetail: action('showContactDetail'),
   showContactModal: action('showContactModal'),
   showConversation: action('showConversation'),
+  cancelAttachmentDownload: action('cancelAttachmentDownload'),
   kickOffAttachmentDownload: action('kickOffAttachmentDownload'),
   markAttachmentAsCorrupted: action('markAttachmentAsCorrupted'),
   messageExpanded: action('messageExpanded'),
@@ -305,12 +307,17 @@ const actions = () => ({
 
   openGiftBadge: action('openGiftBadge'),
   scrollToQuotedMessage: action('scrollToQuotedMessage'),
+  showAttachmentDownloadStillInProgressToast: action(
+    'showAttachmentDownloadStillInProgressToast'
+  ),
+  showAttachmentNotAvailableModal: action('showAttachmentNotAvailableModal'),
   showExpiredIncomingTapToViewToast: action(
     'showExpiredIncomingTapToViewToast'
   ),
   showExpiredOutgoingTapToViewToast: action(
     'showExpiredOutgoingTapToViewToast'
   ),
+  showMediaNoLongerAvailableToast: action('showMediaNoLongerAvailableToast'),
   toggleDeleteMessagesModal: action('toggleDeleteMessagesModal'),
   toggleForwardMessagesModal: action('toggleForwardMessagesModal'),
 

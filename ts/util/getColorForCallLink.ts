@@ -10,19 +10,11 @@ const BASE_16_CONSONANT_ALPHABET = 'bcdfghkmnpqrstxz';
 export function getColorForCallLink(rootKey: string): string {
   const rootKeyStart = rootKey.slice(0, 2);
 
-  const upper = BASE_16_CONSONANT_ALPHABET.indexOf(rootKeyStart[0]) || 0 * 16;
+  const upper = (BASE_16_CONSONANT_ALPHABET.indexOf(rootKeyStart[0]) || 0) * 16;
   const lower = BASE_16_CONSONANT_ALPHABET.indexOf(rootKeyStart[1]) || 0;
   const firstByte = upper + lower;
 
   const index = firstByte % AVATAR_COLOR_COUNT;
 
   return AvatarColors[index];
-}
-
-export function getKeyFromCallLink(callLink: string): string {
-  const url = new URL(callLink);
-  const hash = url.hash.slice(1);
-  const hashParams = new URLSearchParams(hash);
-
-  return hashParams.get('key') || '';
 }

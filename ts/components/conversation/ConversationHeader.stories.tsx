@@ -5,7 +5,10 @@ import type { ComponentProps } from 'react';
 import React, { useContext } from 'react';
 import { action } from '@storybook/addon-actions';
 import type { Meta } from '@storybook/react';
-import { getDefaultConversation } from '../../test-both/helpers/getDefaultConversation';
+import {
+  getDefaultConversation,
+  getDefaultGroup,
+} from '../../test-both/helpers/getDefaultConversation';
 import { getRandomColor } from '../../test-both/helpers/getRandomColor';
 import { setupI18n } from '../../util/setupI18n';
 import { DurationInSeconds } from '../../util/durations';
@@ -17,6 +20,7 @@ import {
   OutgoingCallButtonStyle,
 } from './ConversationHeader';
 import { gifUrl } from '../../storybook/Fixtures';
+import { ThemeType } from '../../types/Util';
 
 export default {
   title: 'Components/Conversation/ConversationHeader',
@@ -30,17 +34,14 @@ type ItemsType = Array<{
 }>;
 
 const commonConversation = getDefaultConversation();
-const commonProps = {
+const commonProps: PropsType = {
   ...commonConversation,
-  conversationId: commonConversation.id,
-  conversationType: commonConversation.type,
+  conversation: getDefaultConversation(),
   conversationName: commonConversation,
   addedByName: null,
-  isBlocked: commonConversation.isBlocked ?? false,
-  isReported: commonConversation.isReported ?? false,
+  theme: ThemeType.light,
 
   cannotLeaveBecauseYouAreLastAdmin: false,
-  showBackButton: false,
   outgoingCallButtonStyle: OutgoingCallButtonStyle.Both,
   isSelectMode: false,
 
@@ -73,8 +74,8 @@ const commonProps = {
   onSearchInConversation: action('onSearchInConversation'),
   onSelectModeEnter: action('onSelectModeEnter'),
   onShowMembers: action('onShowMembers'),
+  onViewAllMedia: action('onViewAllMedia'),
   onViewConversationDetails: action('onViewConversationDetails'),
-  onViewRecentMedia: action('onViewRecentMedia'),
   onViewUserStories: action('onViewUserStories'),
 };
 
@@ -160,21 +161,6 @@ export function PrivateConvo(): JSX.Element {
       },
     },
     {
-      title: 'With back button',
-      props: {
-        ...commonProps,
-        showBackButton: true,
-        conversation: getDefaultConversation({
-          color: getRandomColor(),
-          phoneNumber: '(202) 555-0004',
-          title: '(202) 555-0004',
-          type: 'direct',
-          id: '6',
-          acceptedMessageRequest: true,
-        }),
-      },
-    },
-    {
       title: 'Disappearing messages set',
       props: {
         ...commonProps,
@@ -225,7 +211,7 @@ export function PrivateConvo(): JSX.Element {
       title: 'SMS-only conversation',
       props: {
         ...commonProps,
-        isSMSOnly: true,
+        isSmsOnlyOrUnregistered: true,
         conversation: getDefaultConversation({
           color: getRandomColor(),
           title: '(202) 555-0006',
@@ -422,7 +408,6 @@ export function NeedsDeleteConfirmation(): JSX.Element {
     React.useState(false);
   const props = {
     ...commonProps,
-    conversation: getDefaultConversation(),
     localDeleteWarningShown,
     setLocalDeleteWarningShown: () => setLocalDeleteWarningShown(true),
   };
@@ -436,10 +421,54 @@ export function NeedsDeleteConfirmationButNotEnabled(): JSX.Element {
     React.useState(false);
   const props = {
     ...commonProps,
-    conversation: getDefaultConversation(),
     localDeleteWarningShown,
     isDeleteSyncSendEnabled: false,
     setLocalDeleteWarningShown: () => setLocalDeleteWarningShown(true),
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function DirectConversationInAnotherCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    hasActiveCall: true,
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function DirectConversationInCurrentCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    hasActiveCall: true,
+    outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function GroupConversationInAnotherCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    conversation: getDefaultGroup(),
+    hasActiveCall: true,
+    outgoingCallButtonStyle: OutgoingCallButtonStyle.Join,
+  };
+  const theme = useContext(StorybookThemeContext);
+
+  return <ConversationHeader {...props} theme={theme} />;
+}
+
+export function GroupConversationInCurrentCall(): JSX.Element {
+  const props = {
+    ...commonProps,
+    conversation: getDefaultGroup(),
+    hasActiveCall: true,
+    outgoingCallButtonStyle: OutgoingCallButtonStyle.None,
   };
   const theme = useContext(StorybookThemeContext);
 

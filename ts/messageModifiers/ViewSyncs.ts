@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 
-import type { MessageModel } from '../models/messages';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
 import * as Errors from '../types/errors';
 import * as log from '../logging/log';
 import { GiftBadgeStates } from '../components/conversation/Message';
@@ -18,9 +18,8 @@ import { queueAttachmentDownloads } from '../util/queueAttachmentDownloads';
 import { queueUpdateMessage } from '../util/messageBatcher';
 import { AttachmentDownloadUrgency } from '../jobs/AttachmentDownloadManager';
 import { isAciString } from '../util/isAciString';
-import dataInterface from '../sql/Client';
-
-const { removeSyncTaskById } = dataInterface;
+import { DataReader, DataWriter } from '../sql/Client';
+import { MessageModel } from '../models/messages';
 
 export const viewSyncTaskSchema = z.object({
   type: z.literal('ViewSync').readonly(),
@@ -42,22 +41,22 @@ export type ViewSyncAttributesType = {
 const viewSyncs = new Map<string, ViewSyncAttributesType>();
 
 async function remove(sync: ViewSyncAttributesType): Promise<void> {
-  await removeSyncTaskById(sync.syncTaskId);
+  const { syncTaskId } = sync;
+  viewSyncs.delete(syncTaskId);
+  await DataWriter.removeSyncTaskById(syncTaskId);
 }
 
 export async function forMessage(
-  message: MessageModel
+  message: ReadonlyMessageAttributesType
 ): Promise<Array<ViewSyncAttributesType>> {
-  const logId = `ViewSyncs.forMessage(${getMessageIdForLogging(
-    message.attributes
-  )})`;
+  const logId = `ViewSyncs.forMessage(${getMessageIdForLogging(message)})`;
 
   const sender = window.ConversationController.lookupOrCreate({
-    e164: message.get('source'),
-    serviceId: message.get('sourceServiceId'),
+    e164: message.source,
+    serviceId: message.sourceServiceId,
     reason: logId,
   });
-  const messageTimestamp = getMessageSentTimestamp(message.attributes, {
+  const messageTimestamp = getMessageSentTimestamp(message, {
     log,
   });
 
@@ -92,9 +91,7 @@ export async function onSync(sync: ViewSyncAttributesType): Promise<void> {
   const logId = `ViewSyncs.onSync(timestamp=${viewSync.timestamp})`;
 
   try {
-    const messages = await window.Signal.Data.getMessagesBySentAt(
-      viewSync.timestamp
-    );
+    const messages = await DataReader.getMessagesBySentAt(viewSync.timestamp);
 
     const found = messages.find(item => {
       const sender = window.ConversationController.lookupOrCreate({
@@ -118,11 +115,7 @@ export async function onSync(sync: ViewSyncAttributesType): Promise<void> {
 
     notificationService.removeBy({ messageId: found.id });
 
-    const message = window.MessageCache.__DEPRECATED$register(
-      found.id,
-      found,
-      'ViewSyncs.onSync'
-    );
+    const message = window.MessageCache.register(new MessageModel(found));
     let didChangeMessage = false;
 
     if (message.get('readStatus') !== ReadStatus.Viewed) {
@@ -131,18 +124,17 @@ export async function onSync(sync: ViewSyncAttributesType): Promise<void> {
 
       const attachments = message.get('attachments');
       if (!attachments?.every(isDownloaded)) {
-        const updatedFields = await queueAttachmentDownloads(
-          message.attributes,
-          AttachmentDownloadUrgency.STANDARD
-        );
-        if (updatedFields) {
-          message.set(updatedFields);
+        const didQueueDownload = await queueAttachmentDownloads(message, {
+          urgency: AttachmentDownloadUrgency.STANDARD,
+        });
+        if (didQueueDownload) {
+          didChangeMessage = true;
         }
       }
     }
 
     const giftBadge = message.get('giftBadge');
-    if (giftBadge) {
+    if (giftBadge && giftBadge.state !== GiftBadgeStates.Failed) {
       didChangeMessage = true;
       message.set({
         giftBadge: {

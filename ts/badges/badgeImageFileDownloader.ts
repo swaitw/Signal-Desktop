@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import PQueue from 'p-queue';
+import { DataWriter } from '../sql/Client';
 import * as log from '../logging/log';
 import { MINUTE } from '../util/durations';
 import { missingCaseError } from '../util/missingCaseError';
@@ -14,12 +15,11 @@ enum BadgeDownloaderState {
 }
 
 class BadgeImageFileDownloader {
-  private state = BadgeDownloaderState.Idle;
-
-  private queue = new PQueue({ concurrency: 3 });
+  #state = BadgeDownloaderState.Idle;
+  #queue = new PQueue({ concurrency: 3 });
 
   public async checkForFilesToDownload(): Promise<void> {
-    switch (this.state) {
+    switch (this.#state) {
       case BadgeDownloaderState.CheckingWithAnotherCheckEnqueued:
         log.info(
           'BadgeDownloader#checkForFilesToDownload: not enqueuing another check'
@@ -29,10 +29,10 @@ class BadgeImageFileDownloader {
         log.info(
           'BadgeDownloader#checkForFilesToDownload: enqueuing another check'
         );
-        this.state = BadgeDownloaderState.CheckingWithAnotherCheckEnqueued;
+        this.#state = BadgeDownloaderState.CheckingWithAnotherCheckEnqueued;
         return;
       case BadgeDownloaderState.Idle: {
-        this.state = BadgeDownloaderState.Checking;
+        this.#state = BadgeDownloaderState.Checking;
 
         const urlsToDownload = getUrlsToDownload();
         log.info(
@@ -40,7 +40,7 @@ class BadgeImageFileDownloader {
         );
 
         try {
-          await this.queue.addAll(
+          await this.#queue.addAll(
             urlsToDownload.map(url => () => downloadBadgeImageFile(url))
           );
         } catch (err: unknown) {
@@ -52,8 +52,8 @@ class BadgeImageFileDownloader {
         //   issue][0].
         //
         // [0]: https://github.com/microsoft/TypeScript/issues/9998
-        const previousState = this.state as BadgeDownloaderState;
-        this.state = BadgeDownloaderState.Idle;
+        const previousState = this.#state as BadgeDownloaderState;
+        this.#state = BadgeDownloaderState.Idle;
         if (
           previousState ===
           BadgeDownloaderState.CheckingWithAnotherCheckEnqueued
@@ -63,7 +63,7 @@ class BadgeImageFileDownloader {
         return;
       }
       default:
-        throw missingCaseError(this.state);
+        throw missingCaseError(this.#state);
     }
   }
 }
@@ -96,11 +96,10 @@ async function downloadBadgeImageFile(url: string): Promise<string> {
   }
 
   const imageFileData = await server.getBadgeImageFile(url);
-  const localPath = await window.Signal.Migrations.writeNewBadgeImageFileData(
-    imageFileData
-  );
+  const localPath =
+    await window.Signal.Migrations.writeNewBadgeImageFileData(imageFileData);
 
-  await window.Signal.Data.badgeImageFileDownloaded(url, localPath);
+  await DataWriter.badgeImageFileDownloaded(url, localPath);
 
   window.reduxActions.badges.badgeImageFileDownloaded(url, localPath);
 

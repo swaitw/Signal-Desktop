@@ -1,19 +1,18 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { MessageAttributesType } from '../model-types.d';
+import type { ReadonlyMessageAttributesType } from '../model-types.d';
 import type { AttachmentType } from './Attachment';
 import type { MIMEType } from './MIME';
 
 export type MediaItemMessageType = Pick<
-  MessageAttributesType,
-  | 'attachments'
-  | 'conversationId'
-  | 'id'
-  | 'received_at'
-  | 'received_at_ms'
-  | 'sent_at'
->;
+  ReadonlyMessageAttributesType,
+  'attachments' | 'conversationId' | 'id'
+> & {
+  receivedAt: number;
+  receivedAtMs?: number;
+  sentAt: number;
+};
 
 export type MediaItemType = {
   attachment: AttachmentType;
@@ -22,5 +21,7 @@ export type MediaItemType = {
   loop?: boolean;
   message: MediaItemMessageType;
   objectURL?: string;
+  incrementalObjectUrl?: string;
   thumbnailObjectUrl?: string;
+  size?: number;
 };

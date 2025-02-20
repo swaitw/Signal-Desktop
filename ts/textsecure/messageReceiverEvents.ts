@@ -16,8 +16,8 @@ import type {
   ProcessedEnvelope,
   ProcessedDataMessage,
   ProcessedSent,
+  ProcessedAttachment,
 } from './Types.d';
-import type { ContactDetailsWithAvatar } from './ContactsParser';
 import type {
   CallEventDetails,
   CallLogEventDetails,
@@ -84,7 +84,7 @@ export class ErrorEvent extends Event {
 
 export class ContactSyncEvent extends Event {
   constructor(
-    public readonly contacts: ReadonlyArray<ContactDetailsWithAvatar>,
+    public readonly contactAttachment: ProcessedAttachment,
     public readonly complete: boolean,
     public readonly receivedAtCounter: number,
     public readonly sentAt: number
@@ -113,7 +113,10 @@ export class EnvelopeQueuedEvent extends Event {
 export type ConfirmCallback = () => void;
 
 export class ConfirmableEvent extends Event {
-  constructor(type: string, public readonly confirm: ConfirmCallback) {
+  constructor(
+    type: string,
+    public readonly confirm: ConfirmCallback
+  ) {
     super(type);
   }
 }
@@ -137,11 +140,26 @@ export class DeliveryEvent extends ConfirmableEvent {
   }
 }
 
+export type SuccessfulDecryptEventData = Readonly<{
+  senderDevice: number;
+  senderAci: AciString;
+  timestamp: number;
+}>;
+
+export class SuccessfulDecryptEvent extends ConfirmableEvent {
+  constructor(
+    public readonly data: SuccessfulDecryptEventData,
+    confirm: ConfirmCallback
+  ) {
+    super('successful-decrypt', confirm);
+  }
+}
+
 export type DecryptionErrorEventData = Readonly<{
-  cipherTextBytes?: Uint8Array;
-  cipherTextType?: number;
-  contentHint?: number;
-  groupId?: string;
+  cipherTextBytes: Uint8Array | undefined;
+  cipherTextType: number | undefined;
+  contentHint: number | undefined;
+  groupId: string | undefined;
   receivedAtCounter: number;
   receivedAtDate: number;
   senderDevice: number;
@@ -190,10 +208,10 @@ export class RetryRequestEvent extends ConfirmableEvent {
 
 export type SentEventData = Readonly<{
   envelopeId: string;
-  destination?: string;
+  destinationE164?: string;
   destinationServiceId?: ServiceIdString;
   timestamp?: number;
-  serverTimestamp?: number;
+  serverTimestamp: number;
   device: number | undefined;
   unidentifiedStatus: ProcessedSent['unidentifiedStatus'];
   message: ProcessedDataMessage;
@@ -205,7 +223,10 @@ export type SentEventData = Readonly<{
 }>;
 
 export class SentEvent extends ConfirmableEvent {
-  constructor(public readonly data: SentEventData, confirm: ConfirmCallback) {
+  constructor(
+    public readonly data: SentEventData,
+    confirm: ConfirmCallback
+  ) {
     super('sent', confirm);
   }
 }
@@ -233,8 +254,8 @@ export type MessageEventData = Readonly<{
   sourceDevice?: number;
   destinationServiceId: ServiceIdString;
   timestamp: number;
-  serverGuid?: string;
-  serverTimestamp?: number;
+  serverGuid: string;
+  serverTimestamp: number;
   unidentifiedDeliveryReceived: boolean;
   message: ProcessedDataMessage;
   receivedAtCounter: number;
@@ -290,25 +311,21 @@ export class ConfigurationEvent extends ConfirmableEvent {
 }
 
 export type ViewOnceOpenSyncOptions = {
-  source?: string;
   sourceAci?: AciString;
   timestamp?: number;
 };
 
 export class ViewOnceOpenSyncEvent extends ConfirmableEvent {
-  public readonly source?: string;
-
   public readonly sourceAci?: AciString;
 
   public readonly timestamp?: number;
 
   constructor(
-    { source, sourceAci, timestamp }: ViewOnceOpenSyncOptions,
+    { sourceAci, timestamp }: ViewOnceOpenSyncOptions,
     confirm: ConfirmCallback
   ) {
     super('viewOnceOpenSync', confirm);
 
-    this.source = source;
     this.sourceAci = sourceAci;
     this.timestamp = timestamp;
   }
@@ -324,8 +341,6 @@ export type MessageRequestResponseOptions = {
 };
 
 export class MessageRequestResponseEvent extends ConfirmableEvent {
-  public readonly threadE164?: string;
-
   public readonly threadAci?: AciString;
 
   public readonly messageRequestResponseType?: MessageRequestResponseOptions['messageRequestResponseType'];
@@ -339,7 +354,6 @@ export class MessageRequestResponseEvent extends ConfirmableEvent {
   constructor(
     {
       envelopeId,
-      threadE164,
       threadAci,
       messageRequestResponseType,
       groupId,
@@ -350,7 +364,6 @@ export class MessageRequestResponseEvent extends ConfirmableEvent {
     super('messageRequestResponse', confirm);
 
     this.envelopeId = envelopeId;
-    this.threadE164 = threadE164;
     this.threadAci = threadAci;
     this.messageRequestResponseType = messageRequestResponseType;
     this.groupId = groupId;
@@ -368,22 +381,25 @@ export class FetchLatestEvent extends ConfirmableEvent {
 }
 
 export type KeysEventData = Readonly<{
-  storageServiceKey: Uint8Array | undefined;
   masterKey: Uint8Array | undefined;
+  accountEntropyPool: string | undefined;
+  mediaRootBackupKey: Uint8Array | undefined;
 }>;
 
 export class KeysEvent extends ConfirmableEvent {
-  public readonly storageServiceKey: Uint8Array | undefined;
   public readonly masterKey: Uint8Array | undefined;
+  public readonly accountEntropyPool: string | undefined;
+  public readonly mediaRootBackupKey: Uint8Array | undefined;
 
   constructor(
-    { storageServiceKey, masterKey }: KeysEventData,
+    { masterKey, accountEntropyPool, mediaRootBackupKey }: KeysEventData,
     confirm: ConfirmCallback
   ) {
     super('keys', confirm);
 
-    this.storageServiceKey = storageServiceKey;
     this.masterKey = masterKey;
+    this.accountEntropyPool = accountEntropyPool;
+    this.mediaRootBackupKey = mediaRootBackupKey;
   }
 }
 
@@ -466,6 +482,12 @@ export class CallLinkUpdateSyncEvent extends ConfirmableEvent {
     confirm: ConfirmCallback
   ) {
     super('callLinkUpdateSync', confirm);
+  }
+}
+
+export class DeviceNameChangeSyncEvent extends ConfirmableEvent {
+  constructor(confirm: ConfirmCallback) {
+    super('deviceNameChangeSync', confirm);
   }
 }
 

@@ -1,7 +1,6 @@
 // Copyright 2023 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from '@signalapp/better-sqlite3';
 import { callIdFromEra } from '@signalapp/ringrtc';
 import Long from 'long';
 import { v4 as generateUuid } from 'uuid';
@@ -18,12 +17,13 @@ import {
   CallType,
   GroupCallStatus,
   callHistoryDetailsSchema,
+  CallMode,
 } from '../../types/CallDisposition';
-import { CallMode } from '../../types/Calling';
-import type { MessageType, ConversationType } from '../Interface';
+import type { WritableDB, MessageType, ConversationType } from '../Interface';
 import { strictAssert } from '../../util/assert';
 import { missingCaseError } from '../../util/missingCaseError';
 import { isAciString } from '../../util/isAciString';
+import { safeParseStrict } from '../../util/schemas';
 
 // Legacy type for calls that never had a call id
 type DirectCallHistoryDetailsType = {
@@ -172,9 +172,13 @@ function convertLegacyCallDetails(
     direction,
     status,
     timestamp,
+
+    // Not present at the time of this migration
+    startedById: null,
+    endedTimestamp: null,
   };
 
-  const result = callHistoryDetailsSchema.safeParse(callHistory);
+  const result = safeParseStrict(callHistoryDetailsSchema, callHistory);
   if (result.success) {
     return result.data;
   }
@@ -188,7 +192,7 @@ function convertLegacyCallDetails(
 
 export default function updateToSchemaVersion89(
   currentVersion: number,
-  db: Database,
+  db: WritableDB,
   logger: LoggerType
 ): void {
   if (currentVersion >= 89) {

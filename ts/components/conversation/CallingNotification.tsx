@@ -10,7 +10,13 @@ import { SystemMessage, SystemMessageKind } from './SystemMessage';
 import { Button, ButtonSize, ButtonVariant } from '../Button';
 import { MessageTimestamp } from './MessageTimestamp';
 import type { LocalizerType } from '../../types/Util';
-import { CallMode } from '../../types/Calling';
+import {
+  CallMode,
+  CallDirection,
+  CallType,
+  DirectCallStatus,
+  GroupCallStatus,
+} from '../../types/CallDisposition';
 import type { CallingNotificationType } from '../../util/callingNotification';
 import {
   getCallingIcon,
@@ -19,12 +25,6 @@ import {
 import { missingCaseError } from '../../util/missingCaseError';
 import { Tooltip, TooltipPlacement } from '../Tooltip';
 import * as log from '../../logging/log';
-import {
-  CallDirection,
-  CallType,
-  DirectCallStatus,
-  GroupCallStatus,
-} from '../../types/CallDisposition';
 import {
   type ContextMenuTriggerType,
   MessageContextMenu,
@@ -35,6 +35,10 @@ import {
   useKeyboardShortcutsConditionally,
   useOpenContextMenu,
 } from '../../hooks/useKeyboardShortcuts';
+import { MINUTE } from '../../util/durations';
+import { isMoreRecentThan } from '../../util/timestamp';
+import { InAnotherCallTooltip } from './InAnotherCallTooltip';
+import type { InteractionModeType } from '../../state/ducks/conversations';
 
 export type PropsActionsType = {
   onOutgoingAudioCallInConversation: (conversationId: string) => void;
@@ -47,6 +51,7 @@ type PropsHousekeeping = {
   i18n: LocalizerType;
   id: string;
   conversationId: string;
+  interactionMode: InteractionModeType;
   isNextItemCallingNotification: boolean;
 };
 
@@ -105,7 +110,9 @@ export const CallingNotification: React.FC<PropsType> = React.memo(
               icon={icon}
               kind={
                 status === DirectCallStatus.Missed ||
-                status === GroupCallStatus.Missed
+                status === GroupCallStatus.Missed ||
+                status === DirectCallStatus.Declined ||
+                status === GroupCallStatus.Declined
                   ? SystemMessageKind.Danger
                   : SystemMessageKind.Normal
               }
@@ -115,6 +122,7 @@ export const CallingNotification: React.FC<PropsType> = React.memo(
         <MessageContextMenu
           i18n={i18n}
           triggerId={props.id}
+          interactionMode={props.interactionMode}
           onDeleteMessage={() => {
             props.toggleDeleteMessagesModal({
               conversationId: props.conversationId,
@@ -158,6 +166,11 @@ function renderCallingNotificationButton(
   let disabledTooltipText: undefined | string;
   let onClick: () => void;
 
+  const inThisCall = Boolean(
+    props.activeConversationId &&
+      props.activeConversationId === props.conversationId
+  );
+
   if (props.callHistory == null) {
     return null;
   }
@@ -165,41 +178,49 @@ function renderCallingNotificationButton(
   switch (props.callHistory.mode) {
     case CallMode.Direct: {
       const { direction, type } = props.callHistory;
-      if (props.callHistory.status === DirectCallStatus.Pending) {
+      if (props.callHistory.status === DirectCallStatus.Pending || inThisCall) {
         return null;
       }
       buttonText =
         direction === CallDirection.Incoming
           ? i18n('icu:calling__call-back')
           : i18n('icu:calling__call-again');
-      if (props.activeConversationId != null) {
-        disabledTooltipText = i18n('icu:calling__in-another-call-tooltip');
-        onClick = noop;
-      } else {
-        onClick = () => {
-          if (type === CallType.Video) {
-            onOutgoingVideoCallInConversation(conversationId);
-          } else {
-            onOutgoingAudioCallInConversation(conversationId);
-          }
-        };
-      }
+      onClick = () => {
+        if (type === CallType.Video) {
+          onOutgoingVideoCallInConversation(conversationId);
+        } else {
+          onOutgoingAudioCallInConversation(conversationId);
+        }
+      };
       break;
     }
     case CallMode.Group: {
       if (props.groupCallEnded) {
-        return null;
-      }
-      if (props.activeConversationId != null) {
-        if (props.activeConversationId === conversationId) {
+        const { direction, status, timestamp } = props.callHistory;
+        if (
+          (direction === CallDirection.Incoming &&
+            (status === GroupCallStatus.Declined ||
+              status === GroupCallStatus.Missed)) ||
+          isMoreRecentThan(timestamp, 5 * MINUTE)
+        ) {
+          buttonText = i18n('icu:calling__call-back');
+          onClick = () => {
+            onOutgoingVideoCallInConversation(conversationId);
+          };
+        } else {
+          return null;
+        }
+      } else if (props.activeConversationId != null) {
+        if (inThisCall) {
           buttonText = i18n('icu:calling__return');
           onClick = returnToActiveCall;
         } else {
           buttonText = i18n('icu:calling__join');
-          disabledTooltipText = i18n('icu:calling__in-another-call-tooltip');
-          onClick = noop;
+          onClick = () => {
+            onOutgoingVideoCallInConversation(conversationId);
+          };
         }
-      } else if (props.deviceCount > props.maxDevices) {
+      } else if (props.deviceCount >= props.maxDevices) {
         buttonText = i18n('icu:calling__call-is-full');
         disabledTooltipText = i18n(
           'icu:calling__call-notification__button__call-full-tooltip',
@@ -224,9 +245,16 @@ function renderCallingNotificationButton(
       return null;
   }
 
+  const disabled = Boolean(disabledTooltipText);
+  const inAnotherCall = Boolean(
+    !disabled &&
+      props.activeConversationId &&
+      props.activeConversationId !== props.conversationId
+  );
   const button = (
     <Button
-      disabled={Boolean(disabledTooltipText)}
+      disabled={disabled}
+      discouraged={inAnotherCall}
       onClick={onClick}
       size={ButtonSize.Small}
       variant={ButtonVariant.SystemMessage}
@@ -242,5 +270,9 @@ function renderCallingNotificationButton(
       </Tooltip>
     );
   }
+  if (inAnotherCall) {
+    return <InAnotherCallTooltip i18n={i18n}>{button}</InAnotherCallTooltip>;
+  }
+
   return button;
 }

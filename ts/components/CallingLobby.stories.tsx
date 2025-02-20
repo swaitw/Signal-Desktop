@@ -19,7 +19,7 @@ import {
   getDefaultConversationWithServiceId,
 } from '../test-both/helpers/getDefaultConversation';
 import { CallingToastProvider } from './CallingToast';
-import { CallMode } from '../types/Calling';
+import { CallMode } from '../types/CallDisposition';
 import { getDefaultCallLinkConversation } from '../test-both/helpers/fakeCallLink';
 
 const i18n = setupI18n('en', enMessages);
@@ -84,7 +84,7 @@ const createProps = (overrideProps: Partial<PropsType> = {}): PropsType => {
     outgoingRing: overrideProps.outgoingRing ?? false,
     peekedParticipants: overrideProps.peekedParticipants || [],
     setLocalAudio: action('set-local-audio'),
-    setLocalPreview: action('set-local-preview'),
+    setLocalPreviewContainer: action('set-local-preview-container'),
     setLocalVideo: action('set-local-video'),
     setOutgoingRing: action('set-outgoing-ring'),
     showParticipantsList: overrideProps.showParticipantsList ?? false,

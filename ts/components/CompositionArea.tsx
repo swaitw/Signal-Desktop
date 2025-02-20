@@ -51,6 +51,7 @@ import type {
 } from '../state/ducks/conversations';
 import type { EmojiPickDataType } from './emoji/EmojiPicker';
 import type { LinkPreviewType } from '../types/message/LinkPreviews';
+import { isSameLinkPreview } from '../types/message/LinkPreviews';
 
 import { MandatoryProfileSharingActions } from './conversation/MandatoryProfileSharingActions';
 import { MediaQualitySelector } from './MediaQualitySelector';
@@ -75,6 +76,7 @@ import type { ShowToastAction } from '../state/ducks/toast';
 import type { DraftEditMessageType } from '../model-types.d';
 import type { ForwardMessagesPayload } from '../state/ducks/globalModals';
 import { ForwardMessagesModalType } from './ForwardMessagesModal';
+import { SignalConversationMuteToggle } from './conversation/SignalConversationMuteToggle';
 
 export type OwnProps = Readonly<{
   acceptedMessageRequest: boolean | null;
@@ -117,7 +119,8 @@ export type OwnProps = Readonly<{
   recordingState: RecordingState;
   messageCompositionId: string;
   shouldHidePopovers: boolean | null;
-  isSMSOnly: boolean | null;
+  isMuted: boolean;
+  isSmsOnlyOrUnregistered: boolean | null;
   left: boolean | null;
   linkPreviewLoading: boolean;
   linkPreviewResult: LinkPreviewType | null;
@@ -129,6 +132,7 @@ export type OwnProps = Readonly<{
     conversationId: string;
     files: ReadonlyArray<File>;
   }) => unknown;
+  setMuteExpiration(conversationId: string, muteExpiresAt: number): unknown;
   setMediaQualitySetting(conversationId: string, isHQ: boolean): unknown;
   sendStickerMessage(
     id: string,
@@ -192,13 +196,13 @@ export type OwnProps = Readonly<{
 
 export type Props = Pick<
   CompositionInputProps,
-  | 'clearQuotedMessage'
   | 'draftText'
   | 'draftBodyRanges'
   | 'getPreferredBadge'
-  | 'getQuotedMessage'
   | 'onEditorStateChange'
   | 'onTextTooLong'
+  | 'ourConversationId'
+  | 'quotedMessageId'
   | 'sendCounter'
   | 'sortedGroupMembers'
 > &
@@ -238,6 +242,7 @@ export const CompositionArea = memo(function CompositionArea({
   imageToBlurHash,
   isDisabled,
   isSignalConversation,
+  isMuted,
   isActive,
   lastEditableMessageId,
   messageCompositionId,
@@ -253,6 +258,7 @@ export const CompositionArea = memo(function CompositionArea({
   shouldHidePopovers,
   showToast,
   theme,
+  setMuteExpiration,
 
   // AttachmentList
   draftAttachments,
@@ -274,14 +280,13 @@ export const CompositionArea = memo(function CompositionArea({
   setMediaQualitySetting,
   shouldSendHighQualityAttachments,
   // CompositionInput
-  clearQuotedMessage,
   draftBodyRanges,
   draftText,
   getPreferredBadge,
-  getQuotedMessage,
   isFormattingEnabled,
   onEditorStateChange,
   onTextTooLong,
+  ourConversationId,
   sendCounter,
   sortedGroupMembers,
   // EmojiButton
@@ -331,7 +336,7 @@ export const CompositionArea = memo(function CompositionArea({
   cancelJoinRequest,
   showConversation,
   // SMS-only contacts
-  isSMSOnly,
+  isSmsOnlyOrUnregistered,
   isFetchingUUID,
   renderSmartCompositionRecording,
   renderSmartCompositionRecordingDraft,
@@ -366,6 +371,9 @@ export const CompositionArea = memo(function CompositionArea({
     (draftEditMessage != null &&
       dropNull(draftEditMessage.quote?.messageId) !==
         dropNull(quotedMessageId)) ||
+    // Link preview of edited message changed
+    (draftEditMessage != null &&
+      !isSameLinkPreview(linkPreviewResult, draftEditMessage?.preview)) ||
     // Not edit message, but has attachments
     (draftEditMessage == null && draftAttachments.length !== 0);
 
@@ -502,7 +510,12 @@ export const CompositionArea = memo(function CompositionArea({
     ) {
       inputApiRef.current.reset();
     }
-  }, [messageCompositionId, sendCounter, previousMessageCompositionId, previousSendCounter]);
+  }, [
+    messageCompositionId,
+    sendCounter,
+    previousMessageCompositionId,
+    previousSendCounter,
+  ]);
 
   const insertEmoji = useCallback(
     (e: EmojiPickDataType) => {
@@ -711,10 +724,10 @@ export const CompositionArea = memo(function CompositionArea({
   const handleEscape = useCallback(() => {
     if (linkPreviewResult) {
       onCloseLinkPreview(conversationId);
-    } else if (draftEditMessage) {
-      discardEditMessage(conversationId);
     } else if (quotedMessageId) {
       setQuoteByMessageId(conversationId, undefined);
+    } else if (draftEditMessage) {
+      discardEditMessage(conversationId);
     }
   }, [
     conversationId,
@@ -729,8 +742,14 @@ export const CompositionArea = memo(function CompositionArea({
   useEscapeHandling(handleEscape);
 
   if (isSignalConversation) {
-    // TODO DESKTOP-4547
-    return <div />;
+    return (
+      <SignalConversationMuteToggle
+        conversationId={conversationId}
+        isMuted={isMuted}
+        i18n={i18n}
+        setMuteExpiration={setMuteExpiration}
+      />
+    );
   }
 
   if (selectedMessageIds != null) {
@@ -792,7 +811,7 @@ export const CompositionArea = memo(function CompositionArea({
     );
   }
 
-  if (conversationType === 'direct' && isSMSOnly) {
+  if (conversationType === 'direct' && isSmsOnlyOrUnregistered) {
     return (
       <div
         className={classNames([
@@ -941,6 +960,7 @@ export const CompositionArea = memo(function CompositionArea({
             }}
             onPickEmoji={onPickEmoji}
             onTextTooLong={onTextTooLong}
+            ourConversationId={ourConversationId}
             platform={platform}
             recentStickers={recentStickers}
             skinTone={skinTone}
@@ -1015,14 +1035,12 @@ export const CompositionArea = memo(function CompositionArea({
           )}
         >
           <CompositionInput
-            clearQuotedMessage={clearQuotedMessage}
             conversationId={conversationId}
             disabled={isDisabled}
             draftBodyRanges={draftBodyRanges}
             draftEditMessage={draftEditMessage}
             draftText={draftText}
             getPreferredBadge={getPreferredBadge}
-            getQuotedMessage={getQuotedMessage}
             i18n={i18n}
             inputApi={inputApiRef}
             isFormattingEnabled={isFormattingEnabled}
@@ -1038,7 +1056,9 @@ export const CompositionArea = memo(function CompositionArea({
             onPickEmoji={onPickEmoji}
             onSubmit={handleSubmit}
             onTextTooLong={onTextTooLong}
+            ourConversationId={ourConversationId}
             platform={platform}
+            quotedMessageId={quotedMessageId}
             sendCounter={sendCounter}
             shouldHidePopovers={shouldHidePopovers}
             skinTone={skinTone ?? null}

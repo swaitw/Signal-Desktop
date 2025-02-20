@@ -50,8 +50,14 @@
   "icu:privacyPolicy": {
     "messageformat": "Pogoji uporabe in Pravilnik o zasebnosti"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple silicon"
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
   },
   "icu:copyErrorAndQuit": {
     "messageformat": "Kopiraj napako in zapusti aplikacijo"
@@ -80,11 +86,11 @@
   "icu:databaseError__startOldVersion": {
     "messageformat": "Različica vaše zbirke podatkov se ne ujema s to različico Signala. Prepričajte se, da v računalniku odpirate najnovejšo različico Signala."
   },
-  "icu:databaseError__recover__detail": {
-    "messageformat": "A database error occurred. You can copy the error and contact Signal support to help fix the issue. If you need to use Signal right away, you can attempt to recover your data.\n\nContact support by visiting: {link}"
+  "icu:databaseError__safeStorageBackendChange": {
+    "messageformat": "Ni mogoče dostopati do šifrirnega ključa podatkovne zbirke, ker se je zaledje šifrirnega ključa operacijskega sistema spremenilo iz {previousBackend} v {currentBackend}. To se lahko zgodi, če se namizno okolje spremeni, na primer med GNOME in KDE.\n\nPreklopite na prejšnje namizno okolje."
   },
-  "icu:databaseError__recover__button": {
-    "messageformat": "Recover data"
+  "icu:databaseError__safeStorageBackendChangeWithPreviousFlag": {
+    "messageformat": "Ni mogoče dostopati do šifrirnega ključa podatkovne zbirke, ker se je zaledje šifrirnega ključa operacijskega sistema spremenilo iz {previousBackend} v {currentBackend}. To se lahko zgodi, če se namizno okolje spremeni, na primer med GNOME in KDE.\n\nPreklopite na prejšnje namizno okolje ali poskusite zagnati Signal z navodilom ukazne vrstice --password-store=\"{previousBackendFlag}\""
   },
   "icu:mainMenuFile": {
     "messageformat": "&Datoteka"
@@ -575,8 +581,14 @@
   "icu:decryptionErrorToast": {
     "messageformat": "Prišlo je do napake pri dekripciji z uporabnikom_co {name}, naprava {deviceId}"
   },
-  "icu:decryptionErrorToastAction": {
+  "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "Oddaj sistemsko zabeležbo"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Poleg datotek ne morete izbrati fotografij in videoposnetkov."
@@ -674,6 +686,9 @@
   "icu:search": {
     "messageformat": "Iskanje"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Iskanje neprebranih klepetov"
+  },
   "icu:clearSearch": {
     "messageformat": "Počisti iskalno polje"
   },
@@ -683,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "Ni rezultata za \"{searchTerm}\""
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "V neprebranih klepetih ni rezultatov za \"{searchTerm}\""
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "Ni neprebranih klepetov"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "Stiki SMS/MMS niso na voljo na Signalu Desktop."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "Ni rezultatov za \"{searchTerm}\" v {conversationName}"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Filter: neprebrano"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Filtriranje po neprebranih"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Počisti filter"
   },
   "icu:conversationsHeader": {
     "messageformat": "Klepeti"
@@ -782,11 +812,14 @@
   "icu:voiceNoteError": {
     "messageformat": "Prišlo je do težav s snemalcem zvoka."
   },
-  "icu:attachmentSaved": {
-    "messageformat": "Priponka je bila shranjena."
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {Priponka je shranjena} two {{count,number} priponki sta shranjeni} few {{count,number} priponke so shranjene} other {{count,number} priponk je shranjenih}}"
   },
   "icu:attachmentSavedShow": {
     "messageformat": "Prikaži v mapi"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {Ni mogoče shraniti priponke, saj se prenos še ni zaključil} two {Ni mogoče shraniti priponk, saj se prenos {count,number} še ni zaključil} few {Ni mogoče shraniti priponk, saj se prenos {count,number} še ni zaključil} other {Ni mogoče shraniti priponk, saj se prenos {count,number} še ni zaključil}}"
   },
   "icu:you": {
     "messageformat": "Vi"
@@ -821,11 +854,11 @@
   "icu:mute": {
     "messageformat": "Utišaj"
   },
-  "icu:cannotUpdateDetail": {
-    "messageformat": "Signal se ni mogel posodobiti. {retry} ali obiščite {url} za ročno namestitev. Nato, {support} o tem problemu"
+  "icu:cannotUpdateDetail-v2": {
+    "messageformat": "Signal se ni uspel posodobiti. <retryUpdateButton>Ponovno poskusite posodobiti</retryUpdateButton> ali obiščite {url} in jo namestite ročno. Nato <contactSupportLink>obvestite podporo</contactSupportLink> o tem problemu"
   },
-  "icu:cannotUpdateRequireManualDetail": {
-    "messageformat": "Signal se ni uspel posodobiti. Za ročno namestitev obiščite {url}. Nato {support} o tem problemu."
+  "icu:cannotUpdateRequireManualDetail-v2": {
+    "messageformat": "Signal se ni uspel posodobiti. Za ročno namestitev obiščite {url}. Nato <contactSupportLink>obvestite podporo</contactSupportLink> o tem problemu"
   },
   "icu:readOnlyVolume": {
     "messageformat": "Aplikacija Signal Desktop je najverjetneje v karanteni sistema macOS in se zato ne more samo-nadgraditi. Poskusite premakniti datoteko  {app} v {folder} z orodjem Finder."
@@ -938,8 +971,8 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "Zaznamek"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "Nedavne medijske datoteke"
+  "icu:allMediaMenuItem": {
+    "messageformat": "Vsi mediji"
   },
   "icu:back": {
     "messageformat": "Nazaj"
@@ -986,17 +1019,17 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "Info"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "Izbriši sporočila"
+  "icu:deleteConversation": {
+    "messageformat": "Izbriši"
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "Izbrišem sporočila?"
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "Želite izbrisati klepet?"
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "Vsa sporočila v tem klepetu bodo izbrisana iz te naprave. Ko izbrišete sporočila, lahko še vedno poiščete ta klepet."
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "Vsa sporočila v tem klepetu bodo izbrisana iz te naprave."
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "Vsa sporočila v tem klepetu bodo izbrisana iz vseh vaših naprav. Ko izbrišete sporočila, lahko še vedno poiščete ta klepet."
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "Vsa sporočila v tem klepetu bodo izbrisana iz vseh vaših naprav."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "Zapusti skupino"
@@ -1088,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "Slika, poslana v klepetu"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "Prenos {downloaded} od {total}"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "Ikona, ki označuje, da ima ta slika besedilo"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "Odprite to priponko v večjem pogledu"
+  },
+  "icu:startDownload": {
+    "messageformat": "Začetek prenosa"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "Prekliči prenos"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {{count,number} predmet} two {{count,number} predmeta} few {{count,number} predmeti} other {{count,number} predmetov}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "Ta medij ni več na voljo."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "Ta medij ni na voljo"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "Mediji niso na voljo"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "Preberite več"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "Datoteka ni na voljo"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "To sporočilo je nepopolno"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "Nalepka ni na voljo"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "Glasovno sporočilo ni na voljo"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "Datoteka ni na voljo"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "Celotno sporočilo ni na voljo"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "Mediji niso na voljo"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "Nalepka ni na voljo"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "Glasovno sporočilo ni na voljo"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "Ta datoteka ni bila prenesena iz telefona, ko je bila ta naprava povezana. Medijev in datotek, ki so v času povezovanja naprave starejši od 45 dni, ni mogoče sinhronizirati."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "Celotno besedilo tega sporočila ni bilo preneseno iz vašega telefona, ko je bila ta naprava povezana. Dolgih besedilnih sporočil, starejših od 45 dni v času povezovanja naprave, ni mogoče sinhronizirati."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "Ta medij ni bil prenesen iz telefona, ko je bila ta naprava povezana. Medijev, ki so v času povezovanja naprave starejši od 45 dni, ni mogoče sinhronizirati."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "Ta nalepka ni bila prenesena iz telefona, ko je bila ta naprava povezana. Medijev in datotek, ki so v času povezovanja naprave starejši od 45 dni, ni mogoče sinhronizirati."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "To glasovno sporočilo ni bilo preneseno iz vašega telefona, ko je bila ta naprava povezana. Medijev in datotek, ki so v času povezovanja naprave starejši od 45 dni, ni mogoče sinhronizirati."
   },
   "icu:save": {
     "messageformat": "Shrani"
@@ -1101,7 +1203,7 @@
     "messageformat": "Povezane naprave"
   },
   "icu:linkNewDevice": {
-    "messageformat": "Poveži novo napravo"
+    "messageformat": "Poveži z novo napravo"
   },
   "icu:Install__learn-more": {
     "messageformat": "Preberite več"
@@ -1119,10 +1221,7 @@
     "messageformat": "Nastavitve"
   },
   "icu:Install__instructions__3": {
-    "messageformat": "Tapnite {plusButton} (Android) ali {linkNewDevice} (iPhone)"
-  },
-  "icu:Install__qr-failed-load": {
-    "messageformat": "Kode QR ni bilo mogoče naložiti. Preverite svojo internetno povezavo in poskusite znova. <retry>Poskusi znova</retry>"
+    "messageformat": "Tapnite {linkNewDevice}"
   },
   "icu:Install__qr-failed-load__error--timeout": {
     "messageformat": "Kode QR ni bilo mogoče naložiti. Preverite povezavo in poskusite znova."
@@ -1135,6 +1234,9 @@
   },
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "Ponovno"
+  },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "Osveži kodo"
   },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "Pomoč"
@@ -1153,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "Ime naprave"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "Če želite spremeniti ime te naprave, odprite Signal v telefonu in pojdite v Nastavitve > Povezane naprave"
   },
   "icu:chooseDeviceName": {
     "messageformat": "Izberite ime te naprave"
@@ -1200,7 +1305,7 @@
     "messageformat": "Pridruži se klicu"
   },
   "icu:calling__return": {
-    "messageformat": "Nazaj na klic"
+    "messageformat": "Vrni se v klic"
   },
   "icu:calling__lobby-automatically-muted-because-there-are-a-lot-of-people": {
     "messageformat": "Mikrofon je utišan zaradi obsega klica"
@@ -1214,9 +1319,6 @@
   "icu:calling__cant-join": {
     "messageformat": "Pridružitev klicu ni mogoča"
   },
-  "icu:calling__dialog-already-in-call": {
-    "messageformat": "Ste že v klicu."
-  },
   "icu:calling__call-link-connection-issues": {
     "messageformat": "Ni bilo mogoče pridobiti informacij o povezavi do klica. Preverite svojo omrežno povezavo in poskusite znova."
   },
@@ -1228,6 +1330,9 @@
   },
   "icu:calling__call-link-default-title": {
     "messageformat": "Klic Signal"
+  },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "Ni mogoče izbrisati povezave. Preverite povezavo in poskusite znova."
   },
   "icu:calling__join-request-denied": {
     "messageformat": "Vaša prošnja za pridružitev temu klicu je bila zavrnjena."
@@ -1370,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, one {{first}, {second}, in še {others,number} drug_ga so v tem klicu} two {{first}, {second}, in še {others,number} druga_gi so v tem klicu} few {{first}, {second}, in še {others,number} drugi_ge so v tem klicu} other {{first}, {second} in še {others,number} drugih so v tem klicu}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {V tem klicu je {count,number} oseba} two {V tem klicu sta {count,number} osebi} few {V tem klicu so {count,number} osebe} other {V tem klicu je {count,number} oseb}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "Signal bo poklical uporabnika_co {person}"
   },
@@ -1400,20 +1508,20 @@
   "icu:calling__in-this-call": {
     "messageformat": "{people, plural, one {Na tem klicu · {people,number} oseba} two {Na tem klicu · {people,number} osebi} few {Na tem klicu · {people,number} osebe} other {Na tem klicu · {people,number} ljudi}}"
   },
-  "icu:calling__you-have-blocked": {
-    "messageformat": "Blokirali ste uporabnika_co {name}"
-  },
   "icu:calling__blocked-participant": {
-    "messageformat": "{name} is blocked"
+    "messageformat": "{name} je blokiran_a"
   },
   "icu:calling__block-info-title": {
-    "messageformat": "{name} is blocked"
+    "messageformat": "{name} je blokiran_a"
   },
   "icu:calling__block-info": {
-    "messageformat": "You won’t receive their audio or video and they won’t receive yours."
+    "messageformat": "Ne boste prejemali njihovega zvoka ali videa, oni pa ne vašega."
   },
   "icu:calling__missing-media-keys": {
     "messageformat": "Ne morete prejemati zvoka in videa od uporabnika_ce {name}"
+  },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "Ne morete sprejemati zvoka in videa"
   },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "To je lahko zato, ker niso overili vašega spremenjenega varnostnega števila, ker obstaja problem na njihovi napravi ali pa so vas blokirali."
@@ -1438,6 +1546,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal vam deli {window}."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "Signalovo deljenje zaslona je aktivno"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "Ponovno povezovanje ..."
@@ -1524,10 +1635,10 @@
     "messageformat": "Želite izbrisati vse podatke?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Želite izbrisati vse podatke in sporočila iz te različice Signal Desktop? To namizje lahko vedno znova povežete, vendar vaša sporočila ne bodo obnovljena. Vaš račun Signal in podatki v vašem telefonu ali drugih povezanih napravah ne bodo izbrisani."
+    "messageformat": "Želite izbrisati vse podatke in sporočila iz te različice Signal Desktop? Vaš račun v Signalu in podatki v vašem telefonu ali drugih povezanih napravah ne bodo izbrisani."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "Odjava in brisanje vseh podatkov"
+    "messageformat": "Odjava in brisanje vseh podatkov …"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "Na napravi imate zastarele podatke iz starejše različice aplikacije Signal Desktop. Če boste nadaljevali, bodo ti izbrisani in boste začeli znova iz nič."
@@ -1621,6 +1732,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "Včeraj {time}"
+  },
+  "icu:messageLoop": {
+    "messageformat": "Signal morda ne uspe obdelati dohodnega sporočila."
   },
   "icu:messageBodyTooLong": {
     "messageformat": "Sporočilo je predolgo."
@@ -1834,9 +1948,6 @@
   },
   "icu:autoUpdateRetry": {
     "messageformat": "Ponovno poskusite s posodobitvijo"
-  },
-  "icu:autoUpdateContactSupport": {
-    "messageformat": "obvestite podporni center"
   },
   "icu:autoUpdateNewVersionMessage": {
     "messageformat": "Kliknite za ponoven zagon Signala"
@@ -2625,10 +2736,10 @@
     "messageformat": "Zavrni"
   },
   "icu:declinedIncomingAudioCall": {
-    "messageformat": "Zavrnili ste glasovni klic"
+    "messageformat": "Zavrnjen zvočni klic"
   },
   "icu:declinedIncomingVideoCall": {
-    "messageformat": "Zavrnili ste video klic"
+    "messageformat": "Zavrnjen video klic"
   },
   "icu:acceptedIncomingAudioCall": {
     "messageformat": "Dohodni glasovni klic"
@@ -2661,10 +2772,10 @@
     "messageformat": "Signal bo še naprej deloval v območju za obvestila. To lahko spremenite v nastavitvah Signala."
   },
   "icu:incomingAudioCall": {
-    "messageformat": "Dohodni glasovni klic ..."
+    "messageformat": "Dohodni glasovni klic"
   },
   "icu:incomingVideoCall": {
-    "messageformat": "Dohodni video klic ..."
+    "messageformat": "Dohodni video klic"
   },
   "icu:outgoingAudioCall": {
     "messageformat": "Odhodni glasovni klic"
@@ -2686,6 +2797,9 @@
   },
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, one {{ringer} kliče vas, uporabnika_ci {first}, {second} in še {remaining,number} drugega_go} two {{ringer} kliče vas, uporabnika_ci {first}, {second} in še {remaining,number} druga_gi} few {{ringer} kliče vas, uporabnika_ci {first}, {second} in še {remaining,number} druge} other {{ringer} kliče vas, uporabnika_ci {first}, {second} in še {remaining,number} drugih}}"
+  },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "Povezujem ..."
   },
   "icu:outgoingCallRinging": {
     "messageformat": "Zvonjenje ..."
@@ -2714,6 +2828,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Povezava do klica"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Skupinski klic"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Čakanje na dostop"
   },
@@ -2728,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "Mikrofon je vključen"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "Želite spustiti roko?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "Nižje"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "Zvonjenje je vključeno"
@@ -2772,16 +2895,16 @@
     "messageformat": "{people, plural, one {{people,number} v klicu} two {{people,number} v klicu} few {{people,number} v klicu} other {{people,number} v klicu}}"
   },
   "icu:calling__call-notification__ended": {
-    "messageformat": "Skupinski klic je končan"
+    "messageformat": "Video klic se je končal"
   },
   "icu:calling__call-notification__started-by-someone": {
-    "messageformat": "Skupinski klic v teku"
+    "messageformat": "Začel se je video klic"
   },
   "icu:calling__call-notification__started-by-you": {
-    "messageformat": "Začeki ste skupinski klic"
+    "messageformat": "Začeli ste video klic"
   },
   "icu:calling__call-notification__started": {
-    "messageformat": "{name} je začel_a skupinski klic"
+    "messageformat": "{name} je začel_a video klic"
   },
   "icu:calling__in-another-call-tooltip": {
     "messageformat": "Ste že v tem klicu"
@@ -2970,7 +3093,7 @@
     "messageformat": "Skrbnik_ca vas je odstranil_a iz skupine, zato se ji ne morete več pridružiti."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "Skrbnik_ca skupine mora odobriti vašo prošnjo za pridružitev. Če bo odobrena, bosta vaše ime in fotografija deljena s skupino in njenimi člani_cami."
+    "messageformat": "Preden se lahko pridružite, mora vašo prošnjo potrditi skrbnik_ca skupine. Ko pošljete prošnjo za pridružitev, s člani_cami skupine delite svoje ime in fotografijo."
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "Pridruži se"
@@ -3347,11 +3470,8 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "Prošnja osebe {joinerName} za pridružitev skupini je bila zavrnjena."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName} je zaprosil_a in nato prekinil_a svojo prošnjo za pridružitev skupini preko povezave"
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName} je zaprosil_a in nato prekinil_a {numberOfRequests,number} svojih prošenj za pridružitev skupini preko povezave"
+  "icu:GroupV2--admin-approval-bounce--pluralized": {
+    "messageformat": "{numberOfRequests, plural, one {{joinerName} je zaprosil_a in nato preklical_a svojo prošnjo za pridružitev preko povezave skupine} two {{joinerName} je zaprosil_a in nato preklical_a {numberOfRequests,number} prošnji za pridružitev preko povezave skupine} few {{joinerName} je zaprosil_a in nato preklical_a {numberOfRequests,number} prošnje za pridružitev preko povezave skupine} other {{joinerName} je zaprosil_a in nato preklical_a {numberOfRequests,number} prošenj za pridružitev preko povezave skupine}}"
   },
   "icu:GroupV2--group-link-add--disabled--you": {
     "messageformat": "Vklopili ste povezavo do skupine z izklopljenim obveznim skrbniškim potrjevanjem novih članov_ic."
@@ -3509,6 +3629,9 @@
   "icu:next": {
     "messageformat": "naslednje"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "To lahko traja nekaj minut"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Podprite Signal"
   },
@@ -3526,6 +3649,108 @@
   },
   "icu:BadgeSustainerInstructions__instructions__3": {
     "messageformat": "Tapnite na \"Doniraj Signalu\" in se naročite"
+  },
+  "icu:BackupImportScreen__title": {
+    "messageformat": "Sinhronizacija sporočil"
+  },
+  "icu:BackupImportScreen__progressbar-hint": {
+    "messageformat": "Prenos {currentSize} od {totalSize} ({fractionComplete,number,percent})..."
+  },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "Zaključevanje prenosa sporočila ..."
+  },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "Preklic ..."
+  },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Priprava na prenos ..."
+  },
+  "icu:BackupImportScreen__description": {
+    "messageformat": "To lahko traja nekaj minut"
+  },
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Prekliči"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Sporočila in informacije o klepetu so zaščitene s šifriranjem od konca do konca, vključno s postopkom sinhronizacije. <learnMoreLink>Več o tem</learnMoreLink>"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Želite preklicati povezovanje naprave?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Če se odločite za preklic, ta naprava ne bo povezana in sporočila ali mediji ne bodo preneseni."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Nadaljuj s povezovanjem"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Prekliči povezovanje"
+  },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "Napaka pri prenosu sporočil"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "Vaših sporočil ni bilo mogoče prenesti. Preverite internetno povezavo in poskusite znova."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "Vaših sporočil ni bilo mogoče prenesti zaradi napake. Poskusite znova s ponovno povezavo tega namizja."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "Ponovno"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "Preskoči"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "Želite preskočiti prenos sporočila?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "Če se odločite za preskok, v tej napravi ne boste imeli dostopa do svojih sporočil ali medijev. Nov prenos lahko začnete, ko preskočite z Nastavitve > Klepeti > Prenos."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "Prekliči"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Obnovitev medijev"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Obnovitev je prekinjena"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "Obnovljeno {currentSize} od {totalSize}"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "Mediji se bodo še naprej prenašali v ozadju"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Prekini prenos"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Nadaljuj prenos"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Prekliči prenos"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Več možnosti"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Obnovitev uspešna"
+  },
+  "icu:BackupMediaDownloadProgress__progressbar-hint": {
+    "messageformat": "{currentSize} od {totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Želite preklicati prenos medijev?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Vaša sporočila in mediji se še niso obnovili. Če se odločite za preklic, lahko prenos ponovno izvedete v nastavitvah."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Nadaljuj prenos"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Prekliči prenos"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Razširi"
@@ -3575,8 +3800,8 @@
   "icu:ContactModal--remove-from-group": {
     "messageformat": "Odstrani iz skupine"
   },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "Ste že v tem klicu"
+  "icu:ContactModal--voice": {
+    "messageformat": "Zvočni klic"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Barva klepeta"
@@ -3759,7 +3984,7 @@
     "messageformat": "Ponastavi povezavo"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Odobritev novih članov_ic"
+    "messageformat": "Zahtevajte odobritev administratorja"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Za pridružitev tej skupini preko deljene povezave je potrebna odobritev skrbnika_ce."
@@ -3947,11 +4172,11 @@
   "icu:MessageAudio--playbackRatep5": {
     "messageformat": "0,5"
   },
-  "icu:emptyInboxMessage": {
-    "messageformat": "Kliknite {composeIcon} zgoraj in poiščite stik ali skupino, ki ji želite pisati."
+  "icu:emptyInbox__title": {
+    "messageformat": "Ni klepetov"
   },
-  "icu:composeIcon": {
-    "messageformat": "gumb za pisanje"
+  "icu:emptyInbox__subtitle": {
+    "messageformat": "Tu bodo prikazani nedavni klepeti."
   },
   "icu:ForwardMessageModal__title": {
     "messageformat": "Posreduj uporabniku_ci"
@@ -4074,7 +4299,7 @@
     "messageformat": "Ponastavi vse barve klepetov"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "Ponastavi"
+    "messageformat": "Ponastavi privzete barve"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "Ponastavi"
@@ -4394,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "Izberite barvo"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "Ponovno poskusi prenesti"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "Ponovno"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "Avatar skupine"
   },
@@ -4579,6 +4810,15 @@
   },
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Prihaja do tehničnih težav v omrežju Signal. Ekipa vzdrževalcev se trudi, da bodo čimprej odpravljene."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Potrebna je posodobitev"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "Če želite dokončati sinhronizacijo sporočil, posodobite Signal Desktop."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Posodobitev"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Potrebna je posodobitev"
@@ -4841,6 +5081,12 @@
   "icu:Stories__list-empty": {
     "messageformat": "Trenutno ni nobenih zgodb za prikaz"
   },
+  "icu:Stories__list__empty--title": {
+    "messageformat": "Ni zgodb"
+  },
+  "icu:Stories__list__empty--subtitle": {
+    "messageformat": "Nove posodobitve bodo prikazane tukaj."
+  },
   "icu:Stories__list--sending": {
     "messageformat": "Pošiljam ..."
   },
@@ -4855,6 +5101,9 @@
   },
   "icu:Stories__placeholder--text": {
     "messageformat": "Klikni za ogled zgodbe"
+  },
+  "icu:Stories__placeholder-with-icon--text-2": {
+    "messageformat": "Če želite dodati posodobitev, kliknite <newStoryButtonIcon></newStoryButtonIcon>."
   },
   "icu:Stories__from-to-group": {
     "messageformat": "{name} za {group}"
@@ -5096,8 +5345,11 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "Odgovori"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
-    "messageformat": "Odziv na zgodbo"
+  "icu:StoryViewsNRepliesModal__reacted--you": {
+    "messageformat": "si se odzval/-a na zgodbo"
+  },
+  "icu:StoryViewsNRepliesModal__reacted--someone-else": {
+    "messageformat": "se je odzval/-a na zgodbo"
   },
   "icu:StoryViewsNRepliesModal__not-a-member": {
     "messageformat": "You can’t reply to this story because you’re no longer a member of this group."
@@ -5115,7 +5367,7 @@
     "messageformat": "Zgodba"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "Prikaži zgodbe"
+    "messageformat": "Ponovno prikaži zgodbo"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "Skrij zgodbo"
@@ -5386,7 +5638,10 @@
     "messageformat": "Želite počistiti zgodovino klicev?"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "S tem boste nepovratno izbrisali celotno zgodovino klicev"
+    "messageformat": "S tem boste nepovratno izbrisali celotno zgodovino klicev."
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "S tem boste nepovratno izbrisali celotno zgodovino klicev. Klicne povezave, ki ste jih ustvarili, ne bodo več delovale za ljudi, ki jih imajo. "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "Izbriši"
@@ -5394,11 +5649,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Zgodovina klicev izbrisana"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Klikni za ogled ali začetek klica"
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "Vseh klicnih povezav ni bilo mogoče izbrisati. Preverite povezavo in poskusite znova."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "Celotne zgodovine klicev ni bilo mogoče izbrisati. Preverite povezavo in poskusite znova."
+  },
+  "icu:CallsTab__EmptyStateText--with-icon-2": {
+    "messageformat": "Kliknite <newCallButtonIcon></newCallButtonIcon>, če želite začeti nov zvočni ali video klic."
+  },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Iskanje zgrešenih klicev"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Iskanje"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Filtrirano po zgrešenih"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Filtriraj po zgrešenih"
@@ -5406,11 +5673,20 @@
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Vklop"
   },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "Ni zadnjih klicev. Začnite tako, da pokličete prijatelja_ico."
+  "icu:CallsList__EmptyState--noQuery__title": {
+    "messageformat": "Brez klicev"
+  },
+  "icu:CallsList__EmptyState--noQuery__subtitle": {
+    "messageformat": "Tu bodo prikazani nedavni klici."
   },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "Ni rezultatov za “{query}”"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "V zgrešenih klicih ni rezultatov za \"{query}\""
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "Ni neodgovorjenih klicev"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Ustvari povezavo do klica"
@@ -5424,8 +5700,8 @@
   "icu:CallsList__ItemCallInfo--Missed": {
     "messageformat": "Zgrešeni"
   },
-  "icu:CallsList__ItemCallInfo--GroupCall": {
-    "messageformat": "Skupinski klic"
+  "icu:CallsList__ItemCallInfo--Declined": {
+    "messageformat": "Zavrnjeno"
   },
   "icu:CallsList__ItemCallInfo--CallLink": {
     "messageformat": "Povezava do klica"
@@ -5437,7 +5713,7 @@
     "messageformat": "Želite zapustiti trenutni klic?"
   },
   "icu:CallsList__LeaveCallDialogBody": {
-    "messageformat": "Preden se pridružite novemu klicu, morate zapustiti trenutni klic."
+    "messageformat": "Preden začnete ali se pridružite novemu klicu, morate zapustiti trenutni klic."
   },
   "icu:CallsList__LeaveCallDialogButton--leave": {
     "messageformat": "Zapusti klic"
@@ -5451,32 +5727,59 @@
   "icu:CallsNewCallButton--return": {
     "messageformat": "Nazaj"
   },
-  "icu:CallsNewCallButtonTooltip--in-another-call": {
-    "messageformat": "Preden se pridružite novemu klicu, morate zapustiti trenutni klic"
-  },
-  "icu:CallHistory__Description--Default": {
-    "messageformat": "{type, select, Audio {{direction, select, Outgoing {Odhodni glasovni klic} other {Dohodni glasovni klic}}} Video {{direction, select, Outgoing {Odhodni video klic} other {Dohodni video klic}}} Group {{direction, select, Outgoing {Odhodni skupinski klic} other {Dohodni skupinski klic}}} other {{direction, select, Outgoing {Odhodni klic} other {Dohodni klic}}}}"
-  },
-  "icu:CallHistory__Description--Missed": {
-    "messageformat": "{type, select, Audio {Zgrešen glasovni klic} Video {Zgrešen video klic} Group {Neodgovorjen skupinski klic} other {Neodgovorjen klic}}"
-  },
-  "icu:CallHistory__Description--Unanswered": {
-    "messageformat": "{type, select, Audio {Neodgovorjen glasovni klic} Video {Neodgovorjen video klic} Group {Neodgovorjen skupinski klic} other {Neodgovorjen klic}}"
-  },
-  "icu:CallHistory__Description--Declined": {
-    "messageformat": "{type, select, Audio {Zavrnjen zvočni klic} Video {Zavrnjen video klic} Group {Zavrnjen skupinski klic} other {Zavrnjen klic}}"
-  },
   "icu:CallHistory__Description--Adhoc": {
     "messageformat": "Povezava do klica"
   },
+  "icu:CallHistory__DescriptionVideoCall--Default": {
+    "messageformat": "{direction, select, Outgoing {Odhodni video klic} other {Dohodni video klic}}"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Missed": {
+    "messageformat": "Zgrešen video klic"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Unanswered": {
+    "messageformat": "Neodgovorjen video klic"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Declined": {
+    "messageformat": "Zavrnjen video klic"
+  },
   "icu:CallLinkDetails__Join": {
     "messageformat": "Pridruži se"
+  },
+  "icu:CallLinkDetails__AddCallNameLabel": {
+    "messageformat": "Dodaj ime klica"
+  },
+  "icu:CallLinkDetails__EditCallNameLabel": {
+    "messageformat": "Uredi ime klica"
+  },
+  "icu:CallLinkDetails__ApproveAllMembersLabel": {
+    "messageformat": "Zahtevajte odobritev administratorja"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Te nastavitve ni mogoče spremeniti, ko je klic aktiven"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Kopiraj povezavo"
   },
   "icu:CallLinkDetails__ShareLinkViaSignal": {
     "messageformat": "Deli povezavo prek Signala"
+  },
+  "icu:CallLinkDetails__DeleteLink": {
+    "messageformat": "Izbriši povezavo"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Title": {
+    "messageformat": "Želite izbrisati povezavo klica?"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Body": {
+    "messageformat": "Ta povezava ne bo več delovala za nikogar."
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Cancel": {
+    "messageformat": "Prekliči"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Delete": {
+    "messageformat": "Izbriši"
+  },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Te povezave ni mogoče izbrisati, ko je klic aktiven"
   },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Podrobnosti o klicni povezavi"
@@ -5487,17 +5790,29 @@
   "icu:CallLinkEditModal__AddCallNameLabel": {
     "messageformat": "Dodaj ime klica"
   },
-  "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Odobritev vseh članov_ic"
+  "icu:CallLinkEditModal__EditCallNameLabel": {
+    "messageformat": "Uredi ime klica"
   },
-  "icu:CallLinkEditModal__ApproveAllMembers__Option--Off": {
+  "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
+    "messageformat": "Zahtevajte odobritev administratorja"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Odobri vnos"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Zavrni vnos"
+  },
+  "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Izklopljeno"
   },
-  "icu:CallLinkEditModal__ApproveAllMembers__Option--On": {
+  "icu:CallLinkRestrictionsSelect__Option--On": {
     "messageformat": "Vklopljeno"
   },
   "icu:CallLinkAddNameModal__Title": {
     "messageformat": "Dodaj ime klica"
+  },
+  "icu:CallLinkAddNameModal__Title--Edit": {
+    "messageformat": "Uredi ime klica"
   },
   "icu:CallLinkAddNameModal__NameLabel": {
     "messageformat": "Ime klica"
@@ -5542,10 +5857,19 @@
     "messageformat": "Majhne prilagoditve, popravki napak in izboljšave zmogljivosti. Hvala, da uporabljate Signal!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.16--0": {
-    "messageformat": "Odpravili smo napako, ki je preprečevala, da bi se gumb za minimizacijo klica prikazal, ko se je klic ponovno povezoval. Zdaj se vam ni treba počutiti nepovezanega/-o s prejšnjimi klepeti, tudi če je internet nepovezan."
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "Zdaj lahko prilagodite velikost seznama klepetov v stranski vrstici v napravah z zaslonom na dotik. Ko boste poskušali povleči, ne bo tako težko, madeži na zaslonu pa bodo le dokaz moči, ki jo izžarevajo vaši prsti."
   },
-  "icu:WhatsNew__v7.17--0": {
-    "messageformat": "We wanted things to be slicker and quicker for sticker clickers, so we fixed a bug that sometimes prevented Signal from launching the sticker viewer if you tried to open a sticker pack link while the app was closed."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "Odpravili smo redko napako, ki je preprečevala, da bi se nekateri pogovori pravilno odprli."
+  },
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "Zdaj se lahko odločite za prenos zgodovine klepetov in zadnjih 45 dni medijev v novo povezano napravo. Postopek prenosa je šifriran od konca do konca in je popolnoma neobvezen. Ko se morate odločiti, ali boste preteklost pustili za seboj ali ne, ste prepuščeni sami sebi."
+  },
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "Posodobili smo besedilo na gumbu v namizni aplikaciji, da se ujema s tistim v sistemih Android in iOS. Sliši se kot zelo majhna sprememba in tudi je, vendar včasih prav majhne stvari pokažejo, kako zelo nam je mar."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

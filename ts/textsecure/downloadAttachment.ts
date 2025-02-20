@@ -1,12 +1,14 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createWriteStream } from 'fs';
+import { createWriteStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { isNumber } from 'lodash';
-import type { Readable } from 'stream';
+import type { Readable, Writable } from 'stream';
 import { Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { ensureFile } from 'fs-extra';
+
 import * as log from '../logging/log';
 import * as Errors from '../types/errors';
 import { strictAssert } from '../util/assert';
@@ -18,13 +20,8 @@ import {
 } from '../types/Attachment';
 import * as Bytes from '../Bytes';
 import {
-  deriveBackupMediaKeyMaterial,
-  type BackupMediaKeyMaterialType,
-  deriveBackupMediaThumbnailInnerEncryptionKeyMaterial,
-} from '../Crypto';
-import {
   getAttachmentCiphertextLength,
-  safeUnlinkSync,
+  safeUnlink,
   splitKeys,
   type ReencryptedAttachmentV2,
   decryptAndReencryptLocally,
@@ -34,7 +31,11 @@ import type { ProcessedAttachment } from './Types.d';
 import type { WebAPIType } from './WebAPI';
 import { createName, getRelativePath } from '../util/attachmentPath';
 import { MediaTier } from '../types/AttachmentDownload';
-import { getBackupKey } from '../services/backups/crypto';
+import {
+  getBackupMediaRootKey,
+  deriveBackupMediaKeyMaterial,
+  type BackupMediaKeyMaterialType,
+} from '../services/backups/crypto';
 import { backupsService } from '../services/backups';
 import {
   getMediaIdForAttachment,
@@ -43,6 +44,7 @@ import {
 import { MAX_BACKUP_THUMBNAIL_SIZE } from '../types/VisualAttachment';
 import { missingCaseError } from '../util/missingCaseError';
 import { IV_LENGTH, MAC_LENGTH } from '../types/Crypto';
+import { BackupCredentialType } from '../types/backups';
 
 const DEFAULT_BACKUP_CDN_NUMBER = 3;
 
@@ -56,7 +58,7 @@ function getBackupMediaOuterEncryptionKeyMaterial(
   attachment: AttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachment(attachment);
-  const backupKey = getBackupKey();
+  const backupKey = getBackupMediaRootKey();
   return deriveBackupMediaKeyMaterial(backupKey, mediaId.bytes);
 }
 
@@ -64,17 +66,14 @@ function getBackupThumbnailInnerEncryptionKeyMaterial(
   attachment: AttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachmentThumbnail(attachment);
-  const backupKey = getBackupKey();
-  return deriveBackupMediaThumbnailInnerEncryptionKeyMaterial(
-    backupKey,
-    mediaId.bytes
-  );
+  const backupKey = getBackupMediaRootKey();
+  return deriveBackupMediaKeyMaterial(backupKey, mediaId.bytes);
 }
 function getBackupThumbnailOuterEncryptionKeyMaterial(
   attachment: AttachmentType
 ): BackupMediaKeyMaterialType {
   const mediaId = getMediaIdForAttachmentThumbnail(attachment);
-  const backupKey = getBackupKey();
+  const backupKey = getBackupMediaRootKey();
   return deriveBackupMediaKeyMaterial(backupKey, mediaId.bytes);
 }
 
@@ -103,16 +102,18 @@ export async function downloadAttachment(
   server: WebAPIType,
   attachment: ProcessedAttachment,
   options: {
-    variant?: AttachmentVariant;
     disableRetries?: boolean;
-    timeout?: number;
-    mediaTier?: MediaTier;
     logPrefix?: string;
-  } = { variant: AttachmentVariant.Default }
+    mediaTier?: MediaTier;
+    onSizeUpdate: (totalBytes: number) => void;
+    timeout?: number;
+    variant: AttachmentVariant;
+    abortSignal: AbortSignal;
+  }
 ): Promise<ReencryptedAttachmentV2 & { size?: number }> {
   const logId = `downloadAttachment/${options.logPrefix ?? ''}`;
 
-  const { digest, key, size } = attachment;
+  const { digest, incrementalMac, chunkSize, key, size } = attachment;
 
   strictAssert(digest, `${logId}: missing digest`);
   strictAssert(key, `${logId}: missing key`);
@@ -123,6 +124,39 @@ export async function downloadAttachment(
     (mightBeOnBackupTier(attachment) ? MediaTier.BACKUP : MediaTier.STANDARD);
 
   let downloadResult: Awaited<ReturnType<typeof downloadToDisk>>;
+
+  let { downloadPath } = attachment;
+  let downloadOffset = 0;
+  if (downloadPath) {
+    const absoluteDownloadPath =
+      window.Signal.Migrations.getAbsoluteDownloadsPath(downloadPath);
+    try {
+      ({ size: downloadOffset } = await stat(absoluteDownloadPath));
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        log.error(
+          'downloadAttachment: Failed to get file size for previous download',
+          Errors.toLogFormat(error)
+        );
+        try {
+          await safeUnlink(downloadPath);
+        } catch {
+          downloadPath = undefined;
+        }
+      }
+    }
+  }
+
+  // Start over if we go over the size
+  if (downloadOffset >= size && downloadPath) {
+    log.warn('downloadAttachment: went over, retrying');
+    await safeUnlink(downloadPath);
+    downloadOffset = 0;
+  }
+
+  if (downloadOffset !== 0) {
+    log.info(`${logId}: resuming from ${downloadOffset}`);
+  }
 
   if (mediaTier === MediaTier.STANDARD) {
     strictAssert(
@@ -135,9 +169,21 @@ export async function downloadAttachment(
     const downloadStream = await server.getAttachment({
       cdnKey,
       cdnNumber,
-      options,
+      options: {
+        ...options,
+        downloadOffset,
+      },
     });
-    downloadResult = await downloadToDisk({ downloadStream, size });
+    log.info(
+      `${logId}: calling downloadToDisk with ${downloadPath ? '' : 'no '}downloadPath`
+    );
+    downloadResult = await downloadToDisk({
+      downloadOffset,
+      downloadPath,
+      downloadStream,
+      onSizeUpdate: options.onSizeUpdate,
+      size,
+    });
   } else {
     const mediaId =
       options.variant === AttachmentVariant.ThumbnailFromBackup
@@ -146,7 +192,10 @@ export async function downloadAttachment(
 
     const cdnNumber = await getCdnNumberForBackupTier(attachment);
     const cdnCredentials =
-      await backupsService.credentials.getCDNReadCredentials(cdnNumber);
+      await backupsService.credentials.getCDNReadCredentials(
+        cdnNumber,
+        BackupCredentialType.Media
+      );
 
     const backupDir = await backupsService.api.getBackupDir();
     const mediaDir = await backupsService.api.getMediaDir();
@@ -157,10 +206,16 @@ export async function downloadAttachment(
       mediaDir,
       headers: cdnCredentials.headers,
       cdnNumber,
-      options,
+      options: {
+        ...options,
+        downloadOffset,
+      },
     });
     downloadResult = await downloadToDisk({
       downloadStream,
+      downloadPath,
+      downloadOffset,
+      onSizeUpdate: options.onSizeUpdate,
       size: getAttachmentCiphertextLength(
         options.variant === AttachmentVariant.ThumbnailFromBackup
           ? // be generous, accept downloads of up to twice what we expect for thumbnail
@@ -170,10 +225,7 @@ export async function downloadAttachment(
     });
   }
 
-  const { relativePath: downloadedRelativePath, downloadSize } = downloadResult;
-
-  const cipherTextAbsolutePath =
-    window.Signal.Migrations.getAbsoluteAttachmentPath(downloadedRelativePath);
+  const { absolutePath: cipherTextAbsolutePath, downloadSize } = downloadResult;
 
   try {
     switch (options.variant) {
@@ -188,6 +240,10 @@ export async function downloadAttachment(
           macKey,
           size,
           theirDigest: Bytes.fromBase64(digest),
+          theirIncrementalMac: incrementalMac
+            ? Bytes.fromBase64(incrementalMac)
+            : undefined,
+          theirChunkSize: chunkSize,
           outerEncryption:
             mediaTier === 'backup'
               ? getBackupMediaOuterEncryptionKeyMaterial(attachment)
@@ -226,48 +282,79 @@ export async function downloadAttachment(
       }
     }
   } finally {
-    safeUnlinkSync(cipherTextAbsolutePath);
+    if (!downloadPath) {
+      await safeUnlink(cipherTextAbsolutePath);
+    }
   }
 }
 
 async function downloadToDisk({
+  downloadOffset = 0,
+  downloadPath,
   downloadStream,
+  onSizeUpdate,
   size,
 }: {
+  downloadOffset?: number;
+  downloadPath?: string;
   downloadStream: Readable;
+  onSizeUpdate: (totalBytes: number) => void;
   size: number;
-}): Promise<{ relativePath: string; downloadSize: number }> {
-  const relativeTargetPath = getRelativePath(createName());
-  const absoluteTargetPath =
-    window.Signal.Migrations.getAbsoluteAttachmentPath(relativeTargetPath);
+}): Promise<{ absolutePath: string; downloadSize: number }> {
+  const absoluteTargetPath = downloadPath
+    ? window.Signal.Migrations.getAbsoluteDownloadsPath(downloadPath)
+    : window.Signal.Migrations.getAbsoluteAttachmentPath(
+        getRelativePath(createName())
+      );
   await ensureFile(absoluteTargetPath);
-  const writeStream = createWriteStream(absoluteTargetPath);
-  const targetSize = getAttachmentCiphertextLength(size);
+  let writeStream: Writable;
+  if (downloadPath) {
+    writeStream = createWriteStream(absoluteTargetPath, {
+      flags: 'a',
+      start: downloadOffset,
+    });
+  } else {
+    strictAssert(
+      !downloadOffset,
+      'Download cannot be resumed without downloadPath'
+    );
+    writeStream = createWriteStream(absoluteTargetPath);
+  }
+
+  const targetSize = getAttachmentCiphertextLength(size) - downloadOffset;
   let downloadSize = 0;
 
   try {
     await pipeline(
       downloadStream,
       checkSize(targetSize),
-      measureSize(bytesSeen => {
-        downloadSize = bytesSeen;
+      measureSize({
+        downloadOffset,
+        onSizeUpdate,
+        onComplete: bytesSeen => {
+          downloadSize = bytesSeen;
+        },
       }),
       writeStream
     );
   } catch (error) {
-    try {
-      safeUnlinkSync(absoluteTargetPath);
-    } catch (cleanupError) {
-      log.error(
-        'downloadToDisk: Error while cleaning up',
-        Errors.toLogFormat(cleanupError)
-      );
+    if (downloadPath) {
+      log.warn(`downloadToDisk: stopping at ${downloadSize}`);
+    } else {
+      try {
+        await safeUnlink(absoluteTargetPath);
+      } catch (cleanupError) {
+        log.error(
+          'downloadToDisk: Error while cleaning up',
+          Errors.toLogFormat(cleanupError)
+        );
+      }
     }
 
     throw error;
   }
 
-  return { relativePath: relativeTargetPath, downloadSize };
+  return { absolutePath: absoluteTargetPath, downloadSize };
 }
 
 // A simple transform that throws if it sees more than maxBytes on the stream.

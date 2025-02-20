@@ -18,7 +18,7 @@ function getLightnessFromHue(hue: number, min: number, max: number) {
   return (percentage * (maxValue - minValue)) / 100 + minValue;
 }
 
-function calculateLightness(hue: number): number {
+export function calculateLightness(hue: number): number {
   let lightness = 45;
   if (hue < 60) {
     lightness = getLightnessFromHue(hue, 0, 60);
@@ -46,14 +46,17 @@ export function getHSL(
   {
     hue,
     saturation,
+    lightness,
   }: {
     hue: number;
     saturation: number;
+    lightness?: number;
   },
   adjustedLightness = 0
 ): string {
-  return `hsl(${hue}, ${saturation}%, ${adjustLightnessValue(
-    calculateLightness(hue),
-    adjustedLightness
-  )}%)`;
+  return `hsl(${hue}, ${saturation}%, ${
+    lightness == null || adjustedLightness !== 0
+      ? adjustLightnessValue(calculateLightness(hue), adjustedLightness)
+      : lightness * 100
+  }%)`;
 }

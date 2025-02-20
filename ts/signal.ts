@@ -3,13 +3,16 @@
 
 // The idea with this file is to make it webpackable for the style guide
 
+import type { ReadonlyDeep } from 'type-fest';
+
 import * as Crypto from './Crypto';
 import * as Curve from './Curve';
 import { start as conversationControllerStart } from './ConversationController';
-import Data from './sql/Client';
 import * as Groups from './groups';
 import OS from './util/os/osMain';
+import { isProduction } from './util/version';
 import * as RemoteConfig from './RemoteConfig';
+import { DataReader, DataWriter } from './sql/Client';
 
 // Components
 import { ConfirmationDialog } from './components/ConfirmationDialog';
@@ -68,6 +71,7 @@ type MigrationsModuleType = {
   ) => Promise<{ path: string; size: number }>;
   deleteAttachmentData: (path: string) => Promise<void>;
   deleteAvatar: (path: string) => Promise<void>;
+  deleteDownloadData: (path: string) => Promise<void>;
   deleteDraftFile: (path: string) => Promise<void>;
   deleteExternalMessageFiles: (
     attributes: MessageAttributesType
@@ -75,9 +79,13 @@ type MigrationsModuleType = {
   deleteSticker: (path: string) => Promise<void>;
   deleteTempFile: (path: string) => Promise<void>;
   doesAttachmentExist: (path: string) => Promise<boolean>;
+  ensureAttachmentIsReencryptable: (
+    attachment: TypesAttachment.LocallySavedAttachment
+  ) => Promise<TypesAttachment.ReencryptableAttachment>;
   getAbsoluteAttachmentPath: (path: string) => string;
   getAbsoluteAvatarPath: (src: string) => string;
   getAbsoluteBadgeImageFilePath: (path: string) => string;
+  getAbsoluteDownloadsPath: (path: string) => string;
   getAbsoluteDraftPath: (path: string) => string;
   getAbsoluteStickerPath: (path: string) => string;
   getAbsoluteTempPath: (path: string) => string;
@@ -85,13 +93,13 @@ type MigrationsModuleType = {
     attachment: Partial<AttachmentType>
   ) => Promise<AttachmentWithHydratedData>;
   loadContactData: (
-    contact: Array<EmbeddedContactType> | undefined
+    contact: ReadonlyArray<ReadonlyDeep<EmbeddedContactType>> | undefined
   ) => Promise<Array<EmbeddedContactWithHydratedAvatar> | undefined>;
   loadMessage: (
     message: MessageAttributesType
   ) => Promise<MessageAttributesType>;
   loadPreviewData: (
-    preview: Array<LinkPreviewType> | undefined
+    preview: ReadonlyArray<ReadonlyDeep<LinkPreviewType>> | undefined
   ) => Promise<Array<LinkPreviewWithHydratedData>>;
   loadQuoteData: (
     quote: QuotedMessageType | null | undefined
@@ -107,6 +115,7 @@ type MigrationsModuleType = {
   saveAttachmentToDisk: (options: {
     data: Uint8Array;
     name: string;
+    baseDir?: string;
   }) => Promise<null | { fullPath: string; name: string }>;
   processNewAttachment: (attachment: AttachmentType) => Promise<AttachmentType>;
   processNewSticker: (stickerData: Uint8Array) => Promise<
@@ -156,8 +165,10 @@ export function initializeMigrations({
     createPlaintextReader,
     createWriterForNew,
     createDoesExist,
+    ensureAttachmentIsReencryptable,
     getAvatarsPath,
     getDraftPath,
+    getDownloadsPath,
     getPath,
     getStickersPath,
     getBadgesPath,
@@ -257,6 +268,10 @@ export function initializeMigrations({
   const deleteDraftFile = Attachments.createDeleter(draftPath);
   const readDraftData = createEncryptedReader(draftPath);
 
+  const downloadsPath = getDownloadsPath(userDataPath);
+  const getAbsoluteDownloadsPath = createAbsolutePathGetter(downloadsPath);
+  const deleteDownloadOnDisk = Attachments.createDeleter(downloadsPath);
+
   const avatarsPath = getAvatarsPath(userDataPath);
   const readAvatarData = createEncryptedReader(avatarsPath);
   const getAbsoluteAvatarPath = createAbsolutePathGetter(avatarsPath);
@@ -269,17 +284,23 @@ export function initializeMigrations({
     copyIntoTempDirectory,
     deleteAttachmentData: deleteOnDisk,
     deleteAvatar,
+    deleteDownloadData: deleteDownloadOnDisk,
     deleteDraftFile,
     deleteExternalMessageFiles: MessageType.deleteAllExternalFiles({
-      deleteAttachmentData: Type.deleteData(deleteOnDisk),
+      deleteAttachmentData: Type.deleteData({
+        deleteOnDisk,
+        deleteDownloadOnDisk,
+      }),
       deleteOnDisk,
     }),
     deleteSticker,
     deleteTempFile,
     doesAttachmentExist,
+    ensureAttachmentIsReencryptable,
     getAbsoluteAttachmentPath,
     getAbsoluteAvatarPath,
     getAbsoluteBadgeImageFilePath,
+    getAbsoluteDownloadsPath,
     getAbsoluteDraftPath,
     getAbsoluteStickerPath,
     getAbsoluteTempPath,
@@ -298,6 +319,7 @@ export function initializeMigrations({
     processNewAttachment: (attachment: AttachmentType) =>
       MessageType.processNewAttachment(attachment, {
         writeNewAttachmentData,
+        ensureAttachmentIsReencryptable,
         makeObjectUrl,
         revokeObjectUrl,
         getImageDimensions,
@@ -326,6 +348,8 @@ export function initializeMigrations({
 
       return MessageType.upgradeSchema(message, {
         deleteOnDisk,
+        doesAttachmentExist,
+        ensureAttachmentIsReencryptable,
         getImageDimensions,
         getRegionCode,
         makeImageThumbnail,
@@ -335,7 +359,6 @@ export function initializeMigrations({
         revokeObjectUrl,
         writeNewAttachmentData,
         writeNewStickerData,
-
         logger,
         maxVersion,
       });
@@ -354,6 +377,7 @@ type StringGetterType = (basePath: string) => string;
 type AttachmentsModuleType = {
   getAvatarsPath: StringGetterType;
   getBadgesPath: StringGetterType;
+  getDownloadsPath: StringGetterType;
   getDraftPath: StringGetterType;
   getPath: StringGetterType;
   getStickersPath: StringGetterType;
@@ -383,11 +407,16 @@ type AttachmentsModuleType = {
   saveAttachmentToDisk: ({
     data,
     name,
+    dirName,
   }: {
     data: Uint8Array;
     name: string;
+    dirName?: string;
   }) => Promise<null | { fullPath: string; name: string }>;
 
+  ensureAttachmentIsReencryptable: (
+    attachment: TypesAttachment.LocallySavedAttachment
+  ) => Promise<TypesAttachment.ReencryptableAttachment>;
   readAndDecryptDataFromDisk: (options: {
     absolutePath: string;
     keysBase64: string;
@@ -455,7 +484,6 @@ export const setup = (options: {
     Curve,
     // Note: used in test/index.html, and not type-checked!
     conversationControllerStart,
-    Data,
     Groups,
     Migrations,
     OS,
@@ -463,5 +491,12 @@ export const setup = (options: {
     Services,
     State,
     Types,
+
+    ...(isProduction(window.getVersion())
+      ? {}
+      : {
+          DataReader,
+          DataWriter,
+        }),
   };
 };

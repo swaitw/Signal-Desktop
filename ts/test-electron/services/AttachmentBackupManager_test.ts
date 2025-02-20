@@ -19,15 +19,13 @@ import type {
   StandardAttachmentBackupJobType,
   ThumbnailAttachmentBackupJobType,
 } from '../../types/AttachmentBackup';
-import dataInterface from '../../sql/Client';
+import { DataWriter } from '../../sql/Client';
 import { getRandomBytes } from '../../Crypto';
 import { APPLICATION_OCTET_STREAM, VIDEO_MP4 } from '../../types/MIME';
 import { createName, getRelativePath } from '../../util/attachmentPath';
-import {
-  encryptAttachmentV2,
-  generateKeys,
-  safeUnlinkSync,
-} from '../../AttachmentCrypto';
+import { encryptAttachmentV2, generateKeys } from '../../AttachmentCrypto';
+import { SECOND } from '../../util/durations';
+import { HTTPError } from '../../textsecure/Errors';
 
 const TRANSIT_CDN = 2;
 const TRANSIT_CDN_FOR_NEW_UPLOAD = 42;
@@ -35,15 +33,17 @@ const BACKUP_CDN = 3;
 
 const RELATIVE_ATTACHMENT_PATH = getRelativePath(createName());
 const LOCAL_ENCRYPTION_KEYS = Bytes.toBase64(generateKeys());
-const ATTACHMENT_SIZE = 3577986;
+const ATTACHMENT_SIZE = 188610;
 
-describe('AttachmentBackupManager/JobManager', () => {
+describe('AttachmentBackupManager/JobManager', function attachmentBackupManager(this: Mocha.Suite) {
+  this.timeout(10 * SECOND);
   let backupManager: AttachmentBackupManager | undefined;
   let runJob: sinon.SinonSpy;
   let backupMediaBatch: sinon.SinonStub;
   let backupsService = {};
   let encryptAndUploadAttachment: sinon.SinonStub;
   let sandbox: sinon.SinonSandbox;
+  let clock: sinon.SinonFakeTimers;
   let isInCall: sinon.SinonStub;
 
   function composeJob(
@@ -79,7 +79,7 @@ describe('AttachmentBackupManager/JobManager', () => {
     index: number,
     overrides: Partial<ThumbnailAttachmentBackupJobType['data']> = {}
   ): ThumbnailAttachmentBackupJobType {
-    const mediaName = `thumbnail${index}`;
+    const mediaName = `thumbnail${index}_thumbnail` as const;
 
     return {
       mediaName,
@@ -97,11 +97,29 @@ describe('AttachmentBackupManager/JobManager', () => {
     };
   }
 
+  before(async () => {
+    const { getAbsoluteAttachmentPath } = window.Signal.Migrations;
+    const absolutePath = getAbsoluteAttachmentPath(RELATIVE_ATTACHMENT_PATH);
+    await ensureFile(absolutePath);
+    await DataWriter.ensureFilePermissions();
+    await encryptAttachmentV2({
+      plaintext: {
+        absolutePath: join(__dirname, '../../../fixtures/cat-gif.mp4'),
+      },
+      keys: Bytes.fromBase64(LOCAL_ENCRYPTION_KEYS),
+      needIncrementalMac: false,
+      sink: createWriteStream(absolutePath),
+    });
+  });
+
   beforeEach(async () => {
-    await dataInterface.removeAll();
+    await DataWriter.removeAll();
+
     await window.storage.put('masterKey', Bytes.toBase64(getRandomBytes(32)));
+    await window.storage.put('backupMediaRootKey', getRandomBytes(32));
 
     sandbox = sinon.createSandbox();
+    clock = sandbox.useFakeTimers();
     isInCall = sandbox.stub().returns(false);
 
     backupMediaBatch = sandbox
@@ -124,15 +142,20 @@ describe('AttachmentBackupManager/JobManager', () => {
     const decryptAttachmentV2ToSink = sinon.stub();
 
     const { getAbsoluteAttachmentPath } = window.Signal.Migrations;
+    const abortController = new AbortController();
     runJob = sandbox.stub().callsFake((job: AttachmentBackupJobType) => {
-      return runAttachmentBackupJob(job, false, {
-        // @ts-expect-error incomplete stubbing
-        backupsService,
-        backupMediaBatch,
-        getAbsoluteAttachmentPath,
-        encryptAndUploadAttachment,
-        decryptAttachmentV2ToSink,
-      });
+      return runAttachmentBackupJob(
+        job,
+        { abortSignal: abortController.signal, isLastAttempt: false },
+        {
+          // @ts-expect-error incomplete stubbing
+          backupsService,
+          backupMediaBatch,
+          getAbsoluteAttachmentPath,
+          encryptAndUploadAttachment,
+          decryptAttachmentV2ToSink,
+        }
+      );
     });
 
     backupManager = new AttachmentBackupManager({
@@ -140,27 +163,10 @@ describe('AttachmentBackupManager/JobManager', () => {
       shouldHoldOffOnStartingQueuedJobs: isInCall,
       runJob,
     });
-
-    const absolutePath = getAbsoluteAttachmentPath(RELATIVE_ATTACHMENT_PATH);
-    await ensureFile(absolutePath);
-    await encryptAttachmentV2({
-      plaintext: {
-        absolutePath: join(__dirname, '../../../fixtures/ghost-kitty.mp4'),
-      },
-      keys: Bytes.fromBase64(LOCAL_ENCRYPTION_KEYS),
-      sink: createWriteStream(absolutePath),
-      getAbsoluteAttachmentPath,
-    });
   });
 
   afterEach(async () => {
     sandbox.restore();
-    delete window.textsecure.server;
-    safeUnlinkSync(
-      window.Signal.Migrations.getAbsoluteAttachmentPath(
-        RELATIVE_ATTACHMENT_PATH
-      )
-    );
     await backupManager?.stop();
   });
 
@@ -214,7 +220,7 @@ describe('AttachmentBackupManager/JobManager', () => {
   }
 
   async function getAllSavedJobs(): Promise<Array<AttachmentBackupJobType>> {
-    return dataInterface.getNextAttachmentBackupJobs({
+    return DataWriter.getNextAttachmentBackupJobs({
       limit: 1000,
       timestamp: Infinity,
     });
@@ -318,12 +324,11 @@ describe('AttachmentBackupManager/JobManager', () => {
   });
 
   it('without transitCdnInfo, will permanently remove job if file not found at path', async () => {
-    const [job] = await addJobs(1, { transitCdnInfo: undefined });
-    safeUnlinkSync(
-      window.Signal.Migrations.getAbsoluteAttachmentPath(
-        RELATIVE_ATTACHMENT_PATH
-      )
-    );
+    const [job] = await addJobs(1, {
+      transitCdnInfo: undefined,
+      path: 'nothing/here',
+    });
+
     await backupManager?.start();
     await waitForJobToBeCompleted(job);
 
@@ -333,6 +338,45 @@ describe('AttachmentBackupManager/JobManager', () => {
     // Job removed
     const allRemainingJobs = await getAllSavedJobs();
     assert.strictEqual(allRemainingJobs.length, 0);
+  });
+
+  it('pauses if it receives a retryAfter', async () => {
+    const jobs = await addJobs(5, { transitCdnInfo: undefined });
+
+    encryptAndUploadAttachment.throws(
+      new HTTPError('Rate limited', {
+        code: 429,
+        headers: { 'retry-after': '100' },
+      })
+    );
+    await backupManager?.start();
+    await waitForJobToBeStarted(jobs[2]);
+
+    assert.strictEqual(runJob.callCount, 3);
+    assertRunJobCalledWith([jobs[4], jobs[3], jobs[2]]);
+
+    // no jobs have occurred
+    await clock.tickAsync(50000);
+    assert.strictEqual(runJob.callCount, 3);
+
+    encryptAndUploadAttachment.returns({
+      cdnKey: 'newKeyOnTransitTier',
+      cdnNumber: TRANSIT_CDN_FOR_NEW_UPLOAD,
+    });
+
+    await clock.tickAsync(100000);
+    await waitForJobToBeStarted(jobs[0]);
+    assert.strictEqual(runJob.callCount, 8);
+    assertRunJobCalledWith([
+      jobs[4],
+      jobs[3],
+      jobs[2],
+      jobs[4],
+      jobs[3],
+      jobs[2],
+      jobs[1],
+      jobs[0],
+    ]);
   });
 
   describe('thumbnail backups', () => {
@@ -347,9 +391,7 @@ describe('AttachmentBackupManager/JobManager', () => {
         jobForNonVisualAttachment
       );
 
-      const thumbnailMediaName = Bytes.toBase64(
-        Bytes.fromString(`${jobForVisualAttachment.mediaName}_thumbnail`)
-      );
+      const thumbnailMediaName = `${jobForVisualAttachment.mediaName}_thumbnail`;
       const allJobs = await getAllSavedJobs();
       assert.strictEqual(allJobs.length, 3);
       assert.sameMembers(

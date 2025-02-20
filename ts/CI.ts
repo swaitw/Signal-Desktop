@@ -1,27 +1,33 @@
 // Copyright 2021 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { format } from 'node:util';
 import { ipcRenderer } from 'electron';
 
 import type { IPCResponse as ChallengeResponseType } from './challenge';
 import type { MessageAttributesType } from './model-types.d';
 import * as log from './logging/log';
 import { explodePromise } from './util/explodePromise';
-import { ipcInvoke } from './sql/channels';
+import { AccessType, ipcInvoke } from './sql/channels';
 import { backupsService } from './services/backups';
+import { notificationService } from './services/notifications';
+import { AttachmentBackupManager } from './jobs/AttachmentBackupManager';
+import { migrateAllMessages } from './messages/migrateMessageData';
 import { SECOND } from './util/durations';
 import { isSignalRoute } from './util/signalRoutes';
 import { strictAssert } from './util/assert';
+import { MessageModel } from './models/messages';
 
 type ResolveType = (data: unknown) => void;
 
 export type CIType = {
   deviceName: string;
-  backupData?: Uint8Array;
   getConversationId: (address: string | null) => string | null;
+  createNotificationToken: (address: string) => string | undefined;
   getMessagesBySentAt(
     sentAt: number
   ): Promise<ReadonlyArray<MessageAttributesType>>;
+  getPendingEventCount: (event: string) => number;
   handleEvent: (event: string, data: unknown) => unknown;
   setProvisioningURL: (url: string) => unknown;
   solveChallenge: (response: ChallengeResponseType) => unknown;
@@ -33,16 +39,23 @@ export type CIType = {
     }
   ) => unknown;
   openSignalRoute(url: string): Promise<void>;
-  exportBackupToDisk(path: string): Promise<void>;
+  migrateAllMessages(): Promise<void>;
+  uploadBackup(): Promise<void>;
   unlink: () => void;
+  print: (...args: ReadonlyArray<unknown>) => void;
+  resetReleaseNotesFetcher(): void;
+  forceUnprocessed: boolean;
 };
 
 export type GetCIOptionsType = Readonly<{
   deviceName: string;
-  backupData?: Uint8Array;
+  forceUnprocessed: boolean;
 }>;
 
-export function getCI({ deviceName, backupData }: GetCIOptionsType): CIType {
+export function getCI({
+  deviceName,
+  forceUnprocessed,
+}: GetCIOptionsType): CIType {
   const eventListeners = new Map<string, Array<ResolveType>>();
   const completedEvents = new Map<string, Array<unknown>>();
 
@@ -61,8 +74,8 @@ export function getCI({ deviceName, backupData }: GetCIOptionsType): CIType {
 
     if (!options?.ignorePastEvents) {
       const pendingCompleted = completedEvents.get(event) || [];
-      const pending = pendingCompleted.shift();
-      if (pending) {
+      if (pendingCompleted.length) {
+        const pending = pendingCompleted.shift();
         log.info(`CI: resolving pending result for ${event}`, pending);
 
         if (pendingCompleted.length === 0) {
@@ -92,6 +105,11 @@ export function getCI({ deviceName, backupData }: GetCIOptionsType): CIType {
     });
 
     return promise;
+  }
+
+  function getPendingEventCount(event: string): number {
+    const completed = completedEvents.get(event) || [];
+    return completed.length;
   }
 
   function setProvisioningURL(url: string): void {
@@ -128,21 +146,30 @@ export function getCI({ deviceName, backupData }: GetCIOptionsType): CIType {
 
   async function getMessagesBySentAt(sentAt: number) {
     const messages = await ipcInvoke<ReadonlyArray<MessageAttributesType>>(
+      AccessType.Read,
       'getMessagesBySentAt',
       [sentAt]
     );
     return messages.map(
-      m =>
-        window.MessageCache.__DEPRECATED$register(
-          m.id,
-          m,
-          'CI.getMessagesBySentAt'
-        ).attributes
+      m => window.MessageCache.register(new MessageModel(m)).attributes
     );
   }
 
   function getConversationId(address: string | null): string | null {
     return window.ConversationController.getConversationId(address);
+  }
+
+  function createNotificationToken(address: string): string | undefined {
+    const id = window.ConversationController.getConversationId(address);
+    if (!id) {
+      return undefined;
+    }
+
+    return notificationService._createToken({
+      conversationId: id,
+      messageId: undefined,
+      storyId: undefined,
+    });
   }
 
   async function openSignalRoute(url: string) {
@@ -159,25 +186,49 @@ export function getCI({ deviceName, backupData }: GetCIOptionsType): CIType {
     document.body.removeChild(a);
   }
 
-  async function exportBackupToDisk(path: string) {
-    await backupsService.exportToDisk(path);
+  async function uploadBackup() {
+    await backupsService.upload();
+    await AttachmentBackupManager.waitForIdle();
+
+    // Remove the disclaimer from conversation hero for screenshot backup test
+    await window.storage.put('isRestoredFromBackup', true);
   }
 
   function unlink() {
     window.Whisper.events.trigger('unlinkAndDisconnect');
   }
 
+  function print(...args: ReadonlyArray<unknown>) {
+    handleEvent('print', format(...args));
+  }
+
+  async function resetReleaseNotesFetcher() {
+    await Promise.all([
+      window.textsecure.storage.put(
+        'releaseNotesVersionWatermark',
+        '7.0.0-alpha.1'
+      ),
+      window.textsecure.storage.put('releaseNotesPreviousManifestHash', ''),
+      window.textsecure.storage.put('releaseNotesNextFetchTime', Date.now()),
+    ]);
+  }
+
   return {
     deviceName,
-    backupData,
     getConversationId,
+    createNotificationToken,
     getMessagesBySentAt,
     handleEvent,
     setProvisioningURL,
     solveChallenge,
     waitForEvent,
     openSignalRoute,
-    exportBackupToDisk,
+    migrateAllMessages,
+    uploadBackup,
     unlink,
+    getPendingEventCount,
+    print,
+    resetReleaseNotesFetcher,
+    forceUnprocessed,
   };
 }

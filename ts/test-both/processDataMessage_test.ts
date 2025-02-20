@@ -27,6 +27,7 @@ const UNPROCESSED_ATTACHMENT: Proto.IAttachmentPointer = {
   key: new Uint8Array([1, 2, 3]),
   digest: new Uint8Array([4, 5, 6]),
   contentType: IMAGE_GIF,
+  incrementalMac: new Uint8Array(),
   size: 34,
 };
 
@@ -36,6 +37,7 @@ const PROCESSED_ATTACHMENT: ProcessedAttachment = {
   key: 'AQID',
   digest: 'BAUG',
   contentType: IMAGE_GIF,
+  incrementalMac: undefined,
   size: 34,
 };
 
@@ -46,7 +48,10 @@ describe('processDataMessage', () => {
         timestamp: Long.fromNumber(TIMESTAMP),
         ...message,
       },
-      TIMESTAMP
+      TIMESTAMP,
+      {
+        _createName: () => 'random-path',
+      }
     );
 
   it('should process attachments', () => {
@@ -54,7 +59,12 @@ describe('processDataMessage', () => {
       attachments: [UNPROCESSED_ATTACHMENT],
     });
 
-    assert.deepStrictEqual(out.attachments, [PROCESSED_ATTACHMENT]);
+    assert.deepStrictEqual(out.attachments, [
+      {
+        ...PROCESSED_ATTACHMENT,
+        downloadPath: 'random-path',
+      },
+    ]);
   });
 
   it('should process attachments with 0 cdnId', () => {
@@ -71,6 +81,28 @@ describe('processDataMessage', () => {
       {
         ...PROCESSED_ATTACHMENT,
         cdnId: undefined,
+        downloadPath: 'random-path',
+      },
+    ]);
+  });
+
+  it('should process attachments with incrementalMac/chunkSize', () => {
+    const out = check({
+      attachments: [
+        {
+          ...UNPROCESSED_ATTACHMENT,
+          incrementalMac: new Uint8Array([0, 0, 0]),
+          chunkSize: 2,
+        },
+      ],
+    });
+
+    assert.deepStrictEqual(out.attachments, [
+      {
+        ...PROCESSED_ATTACHMENT,
+        downloadPath: 'random-path',
+        incrementalMac: 'AAAA',
+        chunkSize: 2,
       },
     ]);
   });
@@ -190,7 +222,7 @@ describe('processDataMessage', () => {
         reaction: {
           emoji: '😎',
           targetAuthorAci: ACI_1,
-          targetTimestamp: Long.fromNumber(TIMESTAMP),
+          targetSentTimestamp: Long.fromNumber(TIMESTAMP),
         },
       }).reaction,
       {
@@ -207,7 +239,7 @@ describe('processDataMessage', () => {
           emoji: '😎',
           remove: true,
           targetAuthorAci: ACI_1,
-          targetTimestamp: Long.fromNumber(TIMESTAMP),
+          targetSentTimestamp: Long.fromNumber(TIMESTAMP),
         },
       }).reaction,
       {

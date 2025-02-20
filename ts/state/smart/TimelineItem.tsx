@@ -115,31 +115,36 @@ export const SmartTimelineItem = memo(function SmartTimelineItem(
 
   const {
     blockGroupLinkRequests,
+    cancelAttachmentDownload,
     clearTargetedMessage: clearSelectedMessage,
+    copyMessageText,
     doubleCheckMissingQuoteReference,
     kickOffAttachmentDownload,
     markAttachmentAsCorrupted,
     messageExpanded,
     openGiftBadge,
     pushPanelForConversation,
-    copyMessageText,
     retryDeleteForEveryone,
     retryMessageSend,
     saveAttachment,
-    targetMessage,
-    toggleSelectMessage,
+    saveAttachments,
     setMessageToEdit,
+    showAttachmentDownloadStillInProgressToast,
     showConversation,
     showExpiredIncomingTapToViewToast,
     showExpiredOutgoingTapToViewToast,
+    showMediaNoLongerAvailableToast,
     showSpoiler,
     startConversation,
+    targetMessage,
+    toggleSelectMessage,
   } = useConversationsActions();
 
   const { reactToMessage, scrollToQuotedMessage, setQuoteByMessageId } =
     useComposerActions();
 
   const {
+    showAttachmentNotAvailableModal,
     showContactModal,
     showEditHistoryModal,
     toggleMessageRequestActionsConfirmation,
@@ -201,6 +206,7 @@ export const SmartTimelineItem = memo(function SmartTimelineItem(
       checkForAccount={checkForAccount}
       clearTargetedMessage={clearSelectedMessage}
       doubleCheckMissingQuoteReference={doubleCheckMissingQuoteReference}
+      cancelAttachmentDownload={cancelAttachmentDownload}
       kickOffAttachmentDownload={kickOffAttachmentDownload}
       markAttachmentAsCorrupted={markAttachmentAsCorrupted}
       messageExpanded={messageExpanded}
@@ -218,16 +224,22 @@ export const SmartTimelineItem = memo(function SmartTimelineItem(
       retryMessageSend={retryMessageSend}
       returnToActiveCall={returnToActiveCall}
       saveAttachment={saveAttachment}
+      saveAttachments={saveAttachments}
       scrollToQuotedMessage={scrollToQuotedMessage}
       targetMessage={targetMessage}
       setQuoteByMessageId={setQuoteByMessageId}
       setMessageToEdit={setMessageToEdit}
       showContactModal={showContactModal}
       showConversation={showConversation}
+      showAttachmentDownloadStillInProgressToast={
+        showAttachmentDownloadStillInProgressToast
+      }
+      showAttachmentNotAvailableModal={showAttachmentNotAvailableModal}
       showExpiredIncomingTapToViewToast={showExpiredIncomingTapToViewToast}
       showExpiredOutgoingTapToViewToast={showExpiredOutgoingTapToViewToast}
       showLightbox={showLightbox}
       showLightboxForViewOnceMedia={showLightboxForViewOnceMedia}
+      showMediaNoLongerAvailableToast={showMediaNoLongerAvailableToast}
       showSpoiler={showSpoiler}
       startConversation={startConversation}
       toggleDeleteMessagesModal={toggleDeleteMessagesModal}

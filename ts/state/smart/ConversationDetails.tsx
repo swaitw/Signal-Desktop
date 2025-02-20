@@ -40,6 +40,7 @@ import { useCallingActions } from '../ducks/calling';
 import { useSearchActions } from '../ducks/search';
 import { useGlobalModalActions } from '../ducks/globalModals';
 import { useLightboxActions } from '../ducks/lightbox';
+import { isSignalConversation } from '../../util/isSignalConversation';
 
 export type SmartConversationDetailsProps = {
   conversationId: string;
@@ -128,7 +129,7 @@ export const SmartConversationDetails = memo(function SmartConversationDetails({
     toggleEditNicknameAndNoteModal,
     toggleSafetyNumberModal,
   } = useGlobalModalActions();
-  const { showLightboxWithMedia } = useLightboxActions();
+  const { showLightbox } = useLightboxActions();
 
   const conversation = conversationSelector(conversationId);
   assertDev(
@@ -154,7 +155,8 @@ export const SmartConversationDetails = memo(function SmartConversationDetails({
     conversation,
     allComposableConversations
   );
-  const hasActiveCall = activeCall != null;
+  const hasActiveCall =
+    activeCall != null && activeCall.conversationId !== conversationId;
   const hasGroupLink =
     conversation.groupLink != null &&
     conversation.accessControlAddFromInviteLink !== ACCESS_ENUM.UNSATISFIABLE;
@@ -192,6 +194,7 @@ export const SmartConversationDetails = memo(function SmartConversationDetails({
       i18n={i18n}
       isAdmin={isAdmin}
       isGroup={isGroup}
+      isSignalConversation={isSignalConversation(conversation)}
       leaveGroup={leaveGroup}
       loadRecentMediaItems={loadRecentMediaItems}
       maxGroupSize={maxGroupSize}
@@ -214,7 +217,7 @@ export const SmartConversationDetails = memo(function SmartConversationDetails({
       setMuteExpiration={setMuteExpiration}
       showContactModal={showContactModal}
       showConversation={showConversation}
-      showLightboxWithMedia={showLightboxWithMedia}
+      showLightbox={showLightbox}
       theme={theme}
       toggleAboutContactModal={toggleAboutContactModal}
       toggleAddUserToAnotherGroupModal={toggleAddUserToAnotherGroupModal}

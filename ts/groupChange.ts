@@ -1,6 +1,7 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { ReadonlyDeep } from 'type-fest';
 import type {
   LocalizerType,
   ICUStringMessageParamsByKeyType,
@@ -23,7 +24,7 @@ export type SmartContactRendererType<T extends string | JSX.Element> = (
 
 type StringRendererType<
   T extends string | JSX.Element,
-  ParamsByKeyType extends SelectParamsByKeyType<T> = SelectParamsByKeyType<T>
+  ParamsByKeyType extends SelectParamsByKeyType<T> = SelectParamsByKeyType<T>,
 > = <Key extends keyof ParamsByKeyType>(
   id: Key,
   i18n: LocalizerType,
@@ -56,7 +57,7 @@ export type RenderChangeResultType<T extends string | JSX.Element> =
   >;
 
 export function renderChange<T extends string | JSX.Element>(
-  change: GroupV2ChangeType,
+  change: ReadonlyDeep<GroupV2ChangeType>,
   options: RenderOptionsType<T>
 ): RenderChangeResultType<T> {
   const { details, from } = change;
@@ -79,7 +80,7 @@ export function renderChange<T extends string | JSX.Element>(
 }
 
 function renderChangeDetail<T extends string | JSX.Element>(
-  detail: GroupV2ChangeDetailType,
+  detail: ReadonlyDeep<GroupV2ChangeDetailType>,
   options: RenderOptionsType<T>
 ): string | T | ReadonlyArray<string | T> {
   const {
@@ -746,17 +747,13 @@ function renderChangeDetail<T extends string | JSX.Element>(
   if (detail.type === 'admin-approval-bounce') {
     const { aci, times, isApprovalPending } = detail;
 
-    let firstMessage: T | string;
-    if (times === 1) {
-      firstMessage = i18n('icu:GroupV2--admin-approval-bounce--one', {
-        joinerName: renderContact(aci),
-      });
-    } else {
-      firstMessage = i18n('icu:GroupV2--admin-approval-bounce', {
+    const firstMessage = i18n(
+      'icu:GroupV2--admin-approval-bounce--pluralized',
+      {
         joinerName: renderContact(aci),
         numberOfRequests: times,
-      });
-    }
+      }
+    );
 
     if (!isApprovalPending) {
       return firstMessage;

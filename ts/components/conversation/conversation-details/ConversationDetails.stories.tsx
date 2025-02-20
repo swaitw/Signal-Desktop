@@ -19,12 +19,7 @@ import { makeFakeLookupConversationWithoutServiceId } from '../../../test-both/h
 import { ThemeType } from '../../../types/Util';
 import { DurationInSeconds } from '../../../util/durations';
 import { NavTab } from '../../../state/ducks/nav';
-import { CallMode } from '../../../types/Calling';
-import {
-  CallDirection,
-  CallType,
-  DirectCallStatus,
-} from '../../../types/CallDisposition';
+import { getFakeCallHistoryGroup } from '../../../test-both/helpers/getFakeCallHistoryGroup';
 
 const i18n = setupI18n('en', enMessages);
 
@@ -70,6 +65,7 @@ const createProps = (
   i18n,
   isAdmin: false,
   isGroup: true,
+  isSignalConversation: false,
   leaveGroup: action('leaveGroup'),
   loadRecentMediaItems: action('loadRecentMediaItems'),
   memberships: times(32, i => ({
@@ -92,7 +88,7 @@ const createProps = (
   showContactModal: action('showContactModal'),
   pushPanelForConversation: action('pushPanelForConversation'),
   showConversation: action('showConversation'),
-  showLightboxWithMedia: action('showLightboxWithMedia'),
+  showLightbox: action('showLightbox'),
   updateGroupAttributes: async () => {
     action('updateGroupAttributes')();
   },
@@ -224,31 +220,36 @@ export const _11 = (): JSX.Element => (
   <ConversationDetails {...createProps()} isGroup={false} />
 );
 
-function mins(n: number) {
-  return DurationInSeconds.toMillis(DurationInSeconds.fromMinutes(n));
-}
-
 export function WithCallHistoryGroup(): JSX.Element {
   const props = createProps();
 
   return (
     <ConversationDetails
       {...props}
-      callHistoryGroup={{
-        peerId: props.conversation?.serviceId ?? '',
-        mode: CallMode.Direct,
-        type: CallType.Video,
-        direction: CallDirection.Incoming,
-        status: DirectCallStatus.Accepted,
-        timestamp: Date.now(),
-        children: [
-          { callId: '123', timestamp: Date.now() },
-          { callId: '122', timestamp: Date.now() - mins(30) },
-          { callId: '121', timestamp: Date.now() - mins(45) },
-          { callId: '121', timestamp: Date.now() - mins(60) },
-        ],
-      }}
+      callHistoryGroup={getFakeCallHistoryGroup({
+        peerId: props.conversation?.serviceId,
+      })}
       selectedNavTab={NavTab.Calls}
     />
+  );
+}
+
+export function InAnotherCallGroup(): JSX.Element {
+  const props = createProps();
+
+  return <ConversationDetails {...props} hasActiveCall />;
+}
+
+export function InAnotherCallIndividual(): JSX.Element {
+  const props = createProps();
+
+  return <ConversationDetails {...props} hasActiveCall isGroup={false} />;
+}
+
+export function SignalConversation(): JSX.Element {
+  const props = createProps();
+
+  return (
+    <ConversationDetails {...props} isSignalConversation isGroup={false} />
   );
 }

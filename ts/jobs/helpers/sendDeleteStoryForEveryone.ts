@@ -20,7 +20,7 @@ import { getUntrustedConversationServiceIds } from './getUntrustedConversationSe
 import { handleMessageSend } from '../../util/handleMessageSend';
 import { isConversationAccepted } from '../../util/isConversationAccepted';
 import { isConversationUnregistered } from '../../util/isConversationUnregistered';
-import { __DEPRECATED$getMessageById } from '../../messages/getMessageById';
+import { getMessageById } from '../../messages/getMessageById';
 import { isNotNil } from '../../util/isNotNil';
 import type { CallbackResultType } from '../../textsecure/Types.d';
 import type { MessageModel } from '../../models/messages';
@@ -45,7 +45,7 @@ export async function sendDeleteStoryForEveryone(
 
   const logId = `sendDeleteStoryForEveryone(${storyId})`;
 
-  const message = await __DEPRECATED$getMessageById(storyId);
+  const message = await getMessageById(storyId);
   if (!message) {
     log.error(`${logId}: Failed to fetch message. Failing job.`);
     return;
@@ -182,6 +182,7 @@ export async function sendDeleteStoryForEveryone(
                 deletedForEveryoneTimestamp: targetTimestamp,
                 timestamp,
                 expireTimer: undefined,
+                expireTimerVersion: undefined,
                 contentHint,
                 groupId: undefined,
                 profileKey: conversation.get('profileSharing')
@@ -240,7 +241,7 @@ export async function sendDeleteStoryForEveryone(
     // Sync message for other devices
     await handleMessageSend(
       messaging.sendSyncMessage({
-        destination: undefined,
+        destinationE164: undefined,
         destinationServiceId,
         storyMessageRecipients: updatedStoryRecipients?.map(
           ({ destinationServiceId: legacyDestinationUuid, ...rest }) => {
@@ -277,9 +278,7 @@ async function updateMessageWithSuccessfulSends(
       deletedForEveryoneSendStatus: {},
       deletedForEveryoneFailed: undefined,
     });
-    await window.Signal.Data.saveMessage(message.attributes, {
-      ourAci: window.textsecure.storage.user.getCheckedAci(),
-    });
+    await window.MessageCache.saveMessage(message.attributes);
 
     return;
   }
@@ -300,9 +299,7 @@ async function updateMessageWithSuccessfulSends(
     deletedForEveryoneSendStatus,
     deletedForEveryoneFailed: undefined,
   });
-  await window.Signal.Data.saveMessage(message.attributes, {
-    ourAci: window.textsecure.storage.user.getCheckedAci(),
-  });
+  await window.MessageCache.saveMessage(message.attributes);
 }
 
 async function updateMessageWithFailure(
@@ -316,7 +313,5 @@ async function updateMessageWithFailure(
   );
 
   message.set({ deletedForEveryoneFailed: true });
-  await window.Signal.Data.saveMessage(message.attributes, {
-    ourAci: window.textsecure.storage.user.getCheckedAci(),
-  });
+  await window.MessageCache.saveMessage(message.attributes);
 }

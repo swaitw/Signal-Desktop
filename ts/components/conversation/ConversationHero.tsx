@@ -276,11 +276,6 @@ export function ConversationHero({
             phoneNumber,
             sharedGroupNames,
           })}
-        {!isSignalConversation && (
-          <div className="module-conversation-hero__linkNotification">
-            {i18n('icu:messageHistoryUnsynced')}
-          </div>
-        )}
       </div>
       {isShowingMessageRequestWarning && (
         <ConfirmationDialog

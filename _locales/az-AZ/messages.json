@@ -50,8 +50,14 @@
   "icu:privacyPolicy": {
     "messageformat": "Şərtlər və Gizlilik Siyasəti"
   },
-  "icu:appleSilicon": {
-    "messageformat": "Apple silicon"
+  "icu:About__AppEnvironment": {
+    "messageformat": "{appEnv}"
+  },
+  "icu:About__AppEnvironment--AppleSilicon": {
+    "messageformat": "{appEnv} (Apple silicon)"
+  },
+  "icu:About__AppEnvironment--AppleIntel": {
+    "messageformat": "{appEnv} (Intel)"
   },
   "icu:copyErrorAndQuit": {
     "messageformat": "Xətanı kopyala və çıx"
@@ -80,11 +86,11 @@
   "icu:databaseError__startOldVersion": {
     "messageformat": "Məlumat bazanızın versiyası Signal-ın bu versiyasına uyğun gəlmir. Kompüterinizdə Signal-ın ən son versiyasını açdığınızdan əmin olun."
   },
-  "icu:databaseError__recover__detail": {
-    "messageformat": "A database error occurred. You can copy the error and contact Signal support to help fix the issue. If you need to use Signal right away, you can attempt to recover your data.\n\nContact support by visiting: {link}"
+  "icu:databaseError__safeStorageBackendChange": {
+    "messageformat": "ƏS şifrələmə açarının arxa ucu {previousBackend} -dan {currentBackend} -a dəyişdiyi üçün məlumat bazasının şifrələmə açarına giriş mümkün deyil. Misal üçün masaüstü mühiti GNOME və KDE arasında dəyişdikdə bu baş verə bilər.\n\nƏvvəlki masaüstü mühitinə keçin."
   },
-  "icu:databaseError__recover__button": {
-    "messageformat": "Recover data"
+  "icu:databaseError__safeStorageBackendChangeWithPreviousFlag": {
+    "messageformat": "ƏS şifrələmə açarının arxa ucu {previousBackend} seçimindən {currentBackend} seçiminə dəyişdiyi üçün məlumat bazasının şifrələmə açarına giriş mümkün deyil. Misal üçün masaüstü mühiti GNOME və KDE arasında dəyişdikdə bu baş verə bilər.\n\nƏvvəlki masaüstü mühitinə keçin, yaxud da Signal-ı --password-store=\"{previousBackendFlag}\" əmr xətti bayrağı ilə işlətməyə cəhd edin"
   },
   "icu:mainMenuFile": {
     "messageformat": "&Fayl"
@@ -575,8 +581,14 @@
   "icu:decryptionErrorToast": {
     "messageformat": "Masaüstü, {name}, {deviceId} cihazından bir şifrə açma xətası ilə qarşılaşdı"
   },
-  "icu:decryptionErrorToastAction": {
+  "icu:Toast__ActionLabel--SubmitLog": {
     "messageformat": "Jurnalı göndər"
+  },
+  "icu:Toast--FailedToSendWithEndorsements": {
+    "messageformat": "Failed to send message with endorsements"
+  },
+  "icu:Toast--FailedToImportBackup": {
+    "messageformat": "Failed to process some frames during backup import. Please share your logs."
   },
   "icu:cannotSelectPhotosAndVideosAlongWithFiles": {
     "messageformat": "Fayllarla birgə foto və videolar da seçə bilməzsiniz."
@@ -674,6 +686,9 @@
   "icu:search": {
     "messageformat": "Axtar"
   },
+  "icu:searchUnreadChats": {
+    "messageformat": "Oxunmamış çatları axtar"
+  },
   "icu:clearSearch": {
     "messageformat": "Axtarışı təmizlə"
   },
@@ -683,11 +698,26 @@
   "icu:noSearchResults": {
     "messageformat": "\"{searchTerm}\" üçün nəticə yoxdur"
   },
+  "icu:noSearchResultsWithUnreadFilter": {
+    "messageformat": "Oxunmamış çatlarda \"{searchTerm}\" üçün heç bir nəticə tapılmadı"
+  },
+  "icu:noSearchResultsOnlyUnreadFilter": {
+    "messageformat": "Oxunmamış çatlar yoxdur"
+  },
   "icu:noSearchResults--sms-only": {
     "messageformat": "SMS/MMS əlaqələri Masaüstündə əlçatmazdır."
   },
   "icu:noSearchResultsInConversation": {
     "messageformat": "{conversationName} danışığında \"{searchTerm}\" üçün nəticə yoxdur"
+  },
+  "icu:conversationsUnreadHeader": {
+    "messageformat": "Oxunmamışlara görə filtrlənib"
+  },
+  "icu:filterByUnreadButtonLabel": {
+    "messageformat": "Oxunmamışlara görə filtrlə"
+  },
+  "icu:clearFilterButton": {
+    "messageformat": "Filtri təmizlə"
   },
   "icu:conversationsHeader": {
     "messageformat": "Çatlar"
@@ -782,11 +812,14 @@
   "icu:voiceNoteError": {
     "messageformat": "Səsyazanda bir xəta baş verdi."
   },
-  "icu:attachmentSaved": {
-    "messageformat": "Qoşma yaddaşda saxlanıldı."
+  "icu:attachmentSavedPlural": {
+    "messageformat": "{count, plural, one {Qoşma yadda saxlanıldı} other {{count,number} qoşma yadda saxlanıldı}}"
   },
   "icu:attachmentSavedShow": {
     "messageformat": "Qovluqda göstər"
+  },
+  "icu:attachmentStillDownloading": {
+    "messageformat": "{count, plural, one {Endirmə tamamlanmadığı üçün qoşmanı yadda saxlamaq mümkün deyil} other {{count,number} qoşmanın endirilməsi tamamlanmadığı üçün onları yadda saxlamaq mümkün deyil}}"
   },
   "icu:you": {
     "messageformat": "Siz"
@@ -821,11 +854,11 @@
   "icu:mute": {
     "messageformat": "Səsi bağla"
   },
-  "icu:cannotUpdateDetail": {
-    "messageformat": "Signal yenilənə bilmədi. {retry} və ya əllə quraşdırmaq üçün {url} ünvanını ziyarət edin. Daha sonra bu problem barədə {support}"
+  "icu:cannotUpdateDetail-v2": {
+    "messageformat": "Signal-ı yeniləmək mümkün olmadı. <retryUpdateButton>Təkrar yeniləməyə cəhd edin</retryUpdateButton> və ya əl ilə quraşdırmaq üçün {url} keçidinə daxil olun. Daha sonra isə bu problemlə bağlı <contactSupportLink>dəstək xidməti ilə əlaqə</contactSupportLink> saxlayın"
   },
-  "icu:cannotUpdateRequireManualDetail": {
-    "messageformat": "Signal yenilənə bilmədi. Əllə quraşdırmaq üçün {url} ünvanını ziyarət edin. Daha sonra bu problem barədə {support}"
+  "icu:cannotUpdateRequireManualDetail-v2": {
+    "messageformat": "Signal-ı yeniləmək mümkün olmadı. Əl ilə quraşdırmaq üçün {url} keçidinə daxil olun. Daha sonra isə bu problemlə bağlı <contactSupportLink>dəstək xidməti ilə əlaqə</contactSupportLink> saxlayın"
   },
   "icu:readOnlyVolume": {
     "messageformat": "Signal Masaüstü, böyük ehtimalla macOS karantinindədir və avtomatik yenilənə bilməyəcək. Zəhmət olmasa Finder ilə {app} tətbiqini {folder} qovluğuna köçürün."
@@ -938,8 +971,8 @@
   "icu:NotePreviewModal__Title": {
     "messageformat": "Qeyd"
   },
-  "icu:viewRecentMedia": {
-    "messageformat": "Son mediaya bax"
+  "icu:allMediaMenuItem": {
+    "messageformat": "Bütün media faylları"
   },
   "icu:back": {
     "messageformat": "Geri"
@@ -986,17 +1019,17 @@
   "icu:MessageContextMenu__info": {
     "messageformat": "Məlumat"
   },
-  "icu:deleteMessagesInConversation": {
-    "messageformat": "Mesajları sil"
+  "icu:deleteConversation": {
+    "messageformat": "Sil"
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__title": {
-    "messageformat": "Mesajlar silinsin?"
+  "icu:ConversationHeader__DeleteConversationConfirmation__title": {
+    "messageformat": "Çat silinsin?"
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description": {
-    "messageformat": "Bu çatda olan bütün mesajlar bu cihazdan silinəcək. Mesajları sildikdən sonra da bu çata daxil ola bilərsiniz."
+  "icu:ConversationHeader__DeleteConversationConfirmation__description": {
+    "messageformat": "Bu çatda olan bütün mesajlar bu cihazdan silinəcək."
   },
-  "icu:ConversationHeader__DeleteMessagesInConversationConfirmation__description-with-sync": {
-    "messageformat": "Bu çatdakı bütün mesajlar bütün cihazlarınızdan silinəcək. Mesajları sildikdən sonra da bu çata daxil ola bilərsiniz."
+  "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
+    "messageformat": "Bu çatdakı bütün mesajlar bütün cihazlarınızdan silinəcək."
   },
   "icu:ConversationHeader__ContextMenu__LeaveGroupAction__title": {
     "messageformat": "Qrupu tərk et"
@@ -1088,8 +1121,77 @@
   "icu:lightboxImageAlt": {
     "messageformat": "Çata şəkil göndərildi"
   },
+  "icu:lightBoxDownloading": {
+    "messageformat": "{downloaded}/{total} endirilir"
+  },
   "icu:imageCaptionIconAlt": {
     "messageformat": "Nişan, bu təsvirin başlığının olduğunu göstərir"
+  },
+  "icu:imageOpenAlt": {
+    "messageformat": "Bu qoşmanı geniş görünüşdə açın"
+  },
+  "icu:startDownload": {
+    "messageformat": "Endirməyə başla"
+  },
+  "icu:cancelDownload": {
+    "messageformat": "Endirməni ləğv et"
+  },
+  "icu:downloadNItems": {
+    "messageformat": "{count, plural, one {{count,number} Bənd} other {{count,number} element}}"
+  },
+  "icu:mediaNoLongerAvailable": {
+    "messageformat": "Bu media faylı artıq mövcud deyil."
+  },
+  "icu:mediaNotAvailable": {
+    "messageformat": "Bu media faylı aktiv deyil"
+  },
+  "icu:mediaNotAvailable--short": {
+    "messageformat": "Media faylı mövcud deyil"
+  },
+  "icu:attachmentNoLongerAvailable__learnMore": {
+    "messageformat": "Daha ətraflı"
+  },
+  "icu:attachmentNotAvailable__file": {
+    "messageformat": "Fayl mövcud deyil"
+  },
+  "icu:attachmentNotAvailable__longMessage": {
+    "messageformat": "Bu mesaj natamamdır"
+  },
+  "icu:attachmentNotAvailable__sticker": {
+    "messageformat": "Stiker mövcud deyil"
+  },
+  "icu:attachmentNotAvailable__voice": {
+    "messageformat": "Səsli mesaj mövcud deyil"
+  },
+  "icu:AttachmentNotAvailableModal__title--file": {
+    "messageformat": "Fayl mövcud deyil"
+  },
+  "icu:AttachmentNotAvailableModal__title--long-text": {
+    "messageformat": "Tam mesaj mövcud deyil"
+  },
+  "icu:AttachmentNotAvailableModal__title--media": {
+    "messageformat": "Media faylı mövcud deyil"
+  },
+  "icu:AttachmentNotAvailableModal__title--sticker": {
+    "messageformat": "Stiker mövcud deyil"
+  },
+  "icu:AttachmentNotAvailableModal__title--voice-message": {
+    "messageformat": "Səsli mesaj mövcud deyil"
+  },
+  "icu:AttachmentNotAvailableModal__body--file": {
+    "messageformat": "Bu cihaz qoşulduqda həmin fayl telefonunuzdan köçürülmədi. Cihaz qoşularkən 45 gündən köhnə olan media və fayllar sinxronlaşdırıla bilmir."
+  },
+  "icu:AttachmentNotAvailableModal__body--long-text": {
+    "messageformat": "Bu cihaz qoşulduqda həmin mesajdakı tam mətn telefonunuzdan köçürülmədi. Cihaz qoşularkən 45 gündən köhnə olan uzun mətn mesajları sinxronizasiya edilə bilmir."
+  },
+  "icu:AttachmentNotAvailableModal__body--media": {
+    "messageformat": "Bu cihaz qoşulduqda həmin media fayl telefonunuzdan köçürülmədi. Cihaz qoşularkən 45 gündən köhnə olan media faylları sinxronlaşdırıla bilmir."
+  },
+  "icu:AttachmentNotAvailableModal__body--sticker": {
+    "messageformat": "Bu cihaz qoşulduqda həmin stiker telefonunuzdan köçürülmədi. Cihaz qoşularkən 45 gündən köhnə olan media və fayllar sinxronlaşdırıla bilmir."
+  },
+  "icu:AttachmentNotAvailableModal__body--voice-message": {
+    "messageformat": "Bu cihaz qoşulduqda həmin səsli mesaj telefonunuzdan köçürülmədi. Cihaz qoşularkən 45 gündən köhnə olan media və fayllar sinxronlaşdırıla bilmir."
   },
   "icu:save": {
     "messageformat": "Saxla"
@@ -1101,7 +1203,7 @@
     "messageformat": "Əlaqə yaradılmış cihazlar"
   },
   "icu:linkNewDevice": {
-    "messageformat": "Yeni cihazla əlaqə yarat"
+    "messageformat": "Yeni cihazla əlaqələndir"
   },
   "icu:Install__learn-more": {
     "messageformat": "Daha ətraflı"
@@ -1119,10 +1221,7 @@
     "messageformat": "Tənzimləmələr"
   },
   "icu:Install__instructions__3": {
-    "messageformat": "Android üçün {plusButton}, iPhone üçün {linkNewDevice} düyməsinə toxunun"
-  },
-  "icu:Install__qr-failed-load": {
-    "messageformat": "QR kodunu yükləmək mümkün olmadı. İnternet bağlantınızı yoxlayıb, yenidən cəhd edin. <retry>Yenidən cəhd et</retry>"
+    "messageformat": "{linkNewDevice} keçidinə toxun"
   },
   "icu:Install__qr-failed-load__error--timeout": {
     "messageformat": "QR kodunu yükləmək mümkün olmadı. Bağlantınızı yoxlayıb yenidən cəhd edin."
@@ -1135,6 +1234,9 @@
   },
   "icu:Install__qr-failed-load__retry": {
     "messageformat": "Yenidən sına"
+  },
+  "icu:Install__qr-max-rotations__retry": {
+    "messageformat": "Kodu yenilə"
   },
   "icu:Install__qr-failed-load__get-help": {
     "messageformat": "Kömək istəyin"
@@ -1153,6 +1255,9 @@
   },
   "icu:Preferences--device-name": {
     "messageformat": "Cihaz adı"
+  },
+  "icu:Preferences--device-name__description": {
+    "messageformat": "Bu cihazın adını dəyişmək üçün telefonunuzda Signal tətbiqini açıb, Parametrlər > Əlaqələndirilmiş cihazlar bölməsinə keçin"
   },
   "icu:chooseDeviceName": {
     "messageformat": "Bu cihazın adını seçin"
@@ -1214,9 +1319,6 @@
   "icu:calling__cant-join": {
     "messageformat": "Zəngə qoşulmaq mümkün deyil"
   },
-  "icu:calling__dialog-already-in-call": {
-    "messageformat": "Artıq zəngə qoşulmusunuz."
-  },
   "icu:calling__call-link-connection-issues": {
     "messageformat": "Zəng keçidi məlumatını əldə etmək mümkün olmadı. Şəbəkə bağlantınızı yoxlayıb yenidən sınayın."
   },
@@ -1228,6 +1330,9 @@
   },
   "icu:calling__call-link-default-title": {
     "messageformat": "Signal Zəngi"
+  },
+  "icu:calling__call-link-delete-failed": {
+    "messageformat": "Keçidi silmək mümkün deyil. Bağlantınızı yoxlayıb yenidən cəhd edin."
   },
   "icu:calling__join-request-denied": {
     "messageformat": "Bu zəngə qoşulma sorğunuzdan imtina edildi."
@@ -1370,6 +1475,9 @@
   "icu:calling__pre-call-info--many-people-in-call": {
     "messageformat": "{others, plural, one {{first}, {second} və digər {others,number} nəfər bu zəngdədir} other {{first}, {second} və digər {others,number} nəfər bu zəngdədir}}"
   },
+  "icu:calling__pre-call-info--only-unknown-contacts-in-call": {
+    "messageformat": "{count, plural, one {bu zəngdə {count,number} nəfər var} other {Bu zəngdə {count,number} nəfər var}}"
+  },
   "icu:calling__pre-call-info--will-ring-1": {
     "messageformat": "Signal, {person} çağırır"
   },
@@ -1400,20 +1508,20 @@
   "icu:calling__in-this-call": {
     "messageformat": "{people, plural, one {Bu zəngdə · {people,number} nəfər} other {Bu zəngdə · {people,number} nəfər}}"
   },
-  "icu:calling__you-have-blocked": {
-    "messageformat": "{name} adlı istifadəçini blokladınız"
-  },
   "icu:calling__blocked-participant": {
-    "messageformat": "{name} is blocked"
+    "messageformat": "{name} bloklandı"
   },
   "icu:calling__block-info-title": {
-    "messageformat": "{name} is blocked"
+    "messageformat": "{name} bloklandı"
   },
   "icu:calling__block-info": {
-    "messageformat": "You won’t receive their audio or video and they won’t receive yours."
+    "messageformat": "Onların göndərdiyi səs və ya görüntünü almayacaqsınız və onlar da sizin göndərdiklərinizi almayacaq."
   },
   "icu:calling__missing-media-keys": {
     "messageformat": "{name} əlaqəsindən səs və ya görüntü alına bilmir"
+  },
+  "icu:calling__missing-media-keys--unknown-contact": {
+    "messageformat": "Audio və video fayl qəbul etmək mümkün deyil"
   },
   "icu:calling__missing-media-keys-info": {
     "messageformat": "Bu, qarşı tərəf güvənlik nömrəsi dəyişikliyinizi təsdiqləmədiyi, cihazında bir problem olduğu və ya sizi blokladığı üçün baş verə bilər."
@@ -1438,6 +1546,9 @@
   },
   "icu:calling__presenting--info": {
     "messageformat": "Signal, {window} pəncərəsini paylaşır."
+  },
+  "icu:calling__presenting--info--unknown": {
+    "messageformat": "Signal ekran paylaşımı aktivdir"
   },
   "icu:calling__presenting--reconnecting": {
     "messageformat": "Yenidən bağlantı qurulur..."
@@ -1524,10 +1635,10 @@
     "messageformat": "Bütün verilənlər silinsin?"
   },
   "icu:deleteAllDataBody": {
-    "messageformat": "Signal Desktop-un bu versiyasından bütün verilənlər və mesajlar silinsin? Masaüstünə hər zaman yenidən bağlana bilərsiniz, amma mesajlarınızı bərpa etmək mümkün olmayacaq. Signal hesabınız və telefonunuzdakı verilənlər, yaxud da əlaqələndirilmiş digər cihazlar silinməyəcək."
+    "messageformat": "Signal Desktop-un bu versiyasından bütün verilənlər və mesajlar silinsin? Signal hesabınız və telefonunuzdakı verilənlər, yaxud da əlaqələndirilmiş digər cihazlar silinməyəcək."
   },
   "icu:deleteAllDataProgress": {
-    "messageformat": "Bağlantı kəsilir və bütün verilənlər silinir"
+    "messageformat": "Bağlantı kəsilir və bütün verilənlər silinir…"
   },
   "icu:deleteOldIndexedDBData": {
     "messageformat": "\"Signal Masaüstü\"nün əvvəlki quraşdırmasından qalma köhnə verilənləriniz var. \"Davam et\"i seçsəniz, bu verilənlər silinəcək və sıfırdan başlayacaqsınız."
@@ -1621,6 +1732,9 @@
   },
   "icu:timestampFormat__long--yesterday": {
     "messageformat": "Dünən {time} radələrində"
+  },
+  "icu:messageLoop": {
+    "messageformat": "Signal gələn mesajı emal edə bilmir."
   },
   "icu:messageBodyTooLong": {
     "messageformat": "Mesaj gövdəsi çox uzundur."
@@ -1834,9 +1948,6 @@
   },
   "icu:autoUpdateRetry": {
     "messageformat": "Yenidən sınayın"
-  },
-  "icu:autoUpdateContactSupport": {
-    "messageformat": "dəstəklə əlaqə saxlayın"
   },
   "icu:autoUpdateNewVersionMessage": {
     "messageformat": "Signal-ı yenidən başlatmaq üçün klikləyin"
@@ -2625,10 +2736,10 @@
     "messageformat": "Rədd et"
   },
   "icu:declinedIncomingAudioCall": {
-    "messageformat": "Bir audio zəngi rədd etdiniz"
+    "messageformat": "İmtina edilmiş audio-zəng"
   },
   "icu:declinedIncomingVideoCall": {
-    "messageformat": "Bir görüntülü zəngi rədd etdiniz"
+    "messageformat": "İmtina edilmiş video-zəng"
   },
   "icu:acceptedIncomingAudioCall": {
     "messageformat": "Gələn audio zəng"
@@ -2661,10 +2772,10 @@
     "messageformat": "Signal bildirişlər bölməsində işləməyə davam edəcək. Signal parametrlərindən bunu dəyişə bilərsiniz."
   },
   "icu:incomingAudioCall": {
-    "messageformat": "Gələn audio zəng..."
+    "messageformat": "Gələn audio zəng"
   },
   "icu:incomingVideoCall": {
-    "messageformat": "Gələn görüntülü zəng..."
+    "messageformat": "Görüntülü zəng gəlir"
   },
   "icu:outgoingAudioCall": {
     "messageformat": "Gedən audio zəng"
@@ -2686,6 +2797,9 @@
   },
   "icu:incomingGroupCall__ringing-many": {
     "messageformat": "{remaining, plural, one {{ringer}, sizə, {first}, {second} və digər {remaining,number} nəfərə zəng edir} other {{ringer}, sizə, {first}, {second} və digər {remaining,number} nəfərə zəng edir}}"
+  },
+  "icu:outgoingCallConnecting": {
+    "messageformat": "Bağlantı qurulur..."
   },
   "icu:outgoingCallRinging": {
     "messageformat": "Zəng çalır..."
@@ -2714,6 +2828,9 @@
   "icu:CallControls__InfoDisplay--adhoc-call": {
     "messageformat": "Zəng keçidi"
   },
+  "icu:CallControls__InfoDisplay--group-call": {
+    "messageformat": "Qrup zəngi"
+  },
   "icu:CallControls__InfoDisplay--adhoc-join-request-pending": {
     "messageformat": "Zəngə qoşulmaq üçün icazə gözləyir"
   },
@@ -2728,6 +2845,12 @@
   },
   "icu:CallControls__MutedToast--unmuted": {
     "messageformat": "Mikrofon açıqdır"
+  },
+  "icu:CallControls__LowerHandSuggestionToast": {
+    "messageformat": "Əl endirilsin?"
+  },
+  "icu:CallControls__LowerHandSuggestionToast--button": {
+    "messageformat": "Əlini endir"
   },
   "icu:CallControls__RingingToast--ringing-on": {
     "messageformat": "Zəng aktivdir"
@@ -2772,16 +2895,16 @@
     "messageformat": "{people, plural, one {{people,number} nəfər zəngdədir} other {{people,number} nəfər zəngdədir}}"
   },
   "icu:calling__call-notification__ended": {
-    "messageformat": "Qrup zəngi bitdi"
+    "messageformat": "Video zəng başa çatdı"
   },
   "icu:calling__call-notification__started-by-someone": {
-    "messageformat": "Bir qrup zəngi başladıldı"
+    "messageformat": "Video zəng başladı"
   },
   "icu:calling__call-notification__started-by-you": {
-    "messageformat": "Bir qrup zəngi başlatdınız"
+    "messageformat": "Video zəngə başladınız"
   },
   "icu:calling__call-notification__started": {
-    "messageformat": "{name}, bir qrup zəngi başlatdı"
+    "messageformat": "{name} video zəngə başladı"
   },
   "icu:calling__in-another-call-tooltip": {
     "messageformat": "Artıq zəngdəsiniz"
@@ -2970,7 +3093,7 @@
     "messageformat": "Bir admin sizi çıxartdığı üçün bu qrupa qrup bağlantısı vasitəsilə qoşula bilməzsiniz."
   },
   "icu:GroupV2--join--prompt-with-approval": {
-    "messageformat": "Bu qrupa qoşula bilməyiniz üçün qrupdan bir admin tələbinizi təsdiqləməlidir. Əgər təsdiqləsə, adınız və fotonuz üzvlərlə paylaşılacaq."
+    "messageformat": "Bu qrupa qoşula bilməyiniz üçün qrupdan bir admin tələbinizi təsdiqləməlidir. Siz qoşulma tələbi göndərəndə, adınız və fotonuz üzvlərlə paylaşılacaq."
   },
   "icu:GroupV2--join--join-button": {
     "messageformat": "Qoşul"
@@ -3347,11 +3470,8 @@
   "icu:GroupV2--admin-approval-remove-one--other--unknown": {
     "messageformat": "{joinerName} tərəfindən göndərilən qrupa qoşulma tələbi rədd edildi."
   },
-  "icu:GroupV2--admin-approval-bounce--one": {
-    "messageformat": "{joinerName}, qrup bağlantısı vasitəsilə qoşulmaq üçün göndərdiyi tələbi ləğv etdi."
-  },
-  "icu:GroupV2--admin-approval-bounce": {
-    "messageformat": "{joinerName}, qrup bağlantısı vasitəsilə qoşulmaq üçün göndərdiyi {numberOfRequests,number} tələbi ləğv etdi."
+  "icu:GroupV2--admin-approval-bounce--pluralized": {
+    "messageformat": "{numberOfRequests, plural, one {{joinerName} onların qrup keçidi vasitəsilə qoşulmaq üçün sorğu göndərdi və ləğv etdi.} other {{joinerName} qrup keçidi vasitəsilə qoşulmaq üçün göndərdiyi {numberOfRequests,number} sorğunu ləğv etdi.}}"
   },
   "icu:GroupV2--group-link-add--disabled--you": {
     "messageformat": "Qrup bağlantısını, admin təsdiqi bağlı olaraq işə saldınız."
@@ -3509,6 +3629,9 @@
   "icu:next": {
     "messageformat": "növbəti"
   },
+  "icu:ClearingData__description": {
+    "messageformat": "Bu bir neçə dəqiqə çəkə bilər"
+  },
   "icu:BadgeDialog__become-a-sustainer-button": {
     "messageformat": "Signal-a ianə verin"
   },
@@ -3526,6 +3649,108 @@
   },
   "icu:BadgeSustainerInstructions__instructions__3": {
     "messageformat": "\"Signal-a ianə verin\" üzərinə toxunun və abunə olun"
+  },
+  "icu:BackupImportScreen__title": {
+    "messageformat": "Mesajlar sinxronlaşdırılır"
+  },
+  "icu:BackupImportScreen__progressbar-hint": {
+    "messageformat": "{currentSize} / {totalSize} endirilir ({fractionComplete,number,percent})..."
+  },
+  "icu:BackupImportScreen__progressbar-hint--processing": {
+    "messageformat": "Mesaj köçürmə yekunlaşdırılır..."
+  },
+  "icu:BackupImportScreen__progressbar-hint--canceling": {
+    "messageformat": "Ləğv olunur..."
+  },
+  "icu:BackupImportScreen__progressbar-hint--preparing": {
+    "messageformat": "Endirməyə hazırlaşır..."
+  },
+  "icu:BackupImportScreen__description": {
+    "messageformat": "Bu bir neçə dəqiqə çəkə bilər"
+  },
+  "icu:BackupImportScreen__cancel": {
+    "messageformat": "Ləğv et"
+  },
+  "icu:BackupImportScreen__security-description": {
+    "messageformat": "Mesajlar və çat məlumatı sinxronlaşdırma prosesi daxil, tam şifrələmə ilə qorunur. <learnMoreLink>Daha ətraflı</learnMoreLink>"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__title": {
+    "messageformat": "Cihazın əlaqələndirilməsi ləğv edilsin?"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__body": {
+    "messageformat": "Ləğv etməyi seçsəniz, bu cihaz qoşulmayacaq və heç bir mesaj və ya media faylı köçürülməyəcək."
+  },
+  "icu:BackupImportScreen__cancel-confirmation__cancel": {
+    "messageformat": "Qoşulmağa davam et"
+  },
+  "icu:BackupImportScreen__cancel-confirmation__confirm": {
+    "messageformat": "Qoşulmanı ləğv et"
+  },
+  "icu:BackupImportScreen__error__title": {
+    "messageformat": "Mesajlarınız köçürülərkən xəta baş verdi"
+  },
+  "icu:BackupImportScreen__error__body": {
+    "messageformat": "Mesajlarınızı köçürmək mümkün olmadı. İnternet bağlantınızı yoxlayıb yenidən cəhd edin."
+  },
+  "icu:BackupImportScreen__error-fatal__body": {
+    "messageformat": "Bir xəta səbəbilə mesajlarınızı köçürmək mümkün olmadı. Bu masaüstünü təkrar qoşub yenidən cəhd edin."
+  },
+  "icu:BackupImportScreen__error__confirm": {
+    "messageformat": "Yenidən sına"
+  },
+  "icu:BackupImportScreen__skip": {
+    "messageformat": "Ötür"
+  },
+  "icu:BackupImportScreen__skip-confirmation__title": {
+    "messageformat": "Mesaj köçürmə ötürülsün?"
+  },
+  "icu:BackupImportScreen__skip-confirmation__body": {
+    "messageformat": "Ötürməni seçsəniz bu cihazda heç bir mesaj və ya media faylınıza daxil ola bilməyəcəksiniz. Parametrlər > Çatlar > Köçür bölməsindən addımlarıkeçdikdən sonra yeni köçürməyə başlaya bilərsiniz."
+  },
+  "icu:BackupImportScreen__skip-confirmation__cancel": {
+    "messageformat": "Ləğv et"
+  },
+  "icu:BackupMediaDownloadProgress__title-in-progress": {
+    "messageformat": "Media faylı bərpa olunur"
+  },
+  "icu:BackupMediaDownloadProgress__title-paused": {
+    "messageformat": "Bərpaetmə dayandırıldı"
+  },
+  "icu:BackupMediaDownloadProgress__title-idle": {
+    "messageformat": "{currentSize} / {totalSize} bərpa edildi"
+  },
+  "icu:BackupMediaDownloadProgress__description-idle": {
+    "messageformat": "Media faylı ehtiyat nüsxədə endirilməyə davam edəcək"
+  },
+  "icu:BackupMediaDownloadProgress__button-pause": {
+    "messageformat": "Köçürməyə fasilə ver"
+  },
+  "icu:BackupMediaDownloadProgress__button-resume": {
+    "messageformat": "Köçürməyə qayıt"
+  },
+  "icu:BackupMediaDownloadProgress__button-cancel": {
+    "messageformat": "Köçürməni ləğv et"
+  },
+  "icu:BackupMediaDownloadProgress__button-more": {
+    "messageformat": "Daha çox seçim"
+  },
+  "icu:BackupMediaDownloadProgress__title-complete": {
+    "messageformat": "Geri yükləmə tamamlandı"
+  },
+  "icu:BackupMediaDownloadProgress__progressbar-hint": {
+    "messageformat": "{currentSize} /{totalSize}"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__title": {
+    "messageformat": "Media fayllarının köçürülməsi ləğv edilsin?"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__description": {
+    "messageformat": "Mesajlarınız və media faylınızın bərpası tamamlanmayıb. Ləğv etsəniz, Parametrlərdən yenidən köçürə bilərsiniz."
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-continue": {
+    "messageformat": "Köçürməni davam et"
+  },
+  "icu:BackupMediaDownloadCancelConfirmation__button-confirm-cancel": {
+    "messageformat": "Köçürməni ləğv et"
   },
   "icu:CompositionArea--expand": {
     "messageformat": "Genişləndir"
@@ -3575,8 +3800,8 @@
   "icu:ContactModal--remove-from-group": {
     "messageformat": "Qrupdan çıxart"
   },
-  "icu:ContactModal--already-in-call": {
-    "messageformat": "Artıq zəngdəsiniz"
+  "icu:ContactModal--voice": {
+    "messageformat": "Səsli"
   },
   "icu:showChatColorEditor": {
     "messageformat": "Çatın rəngi"
@@ -3759,7 +3984,7 @@
     "messageformat": "Bağlantını sıfırla"
   },
   "icu:GroupLinkManagement--approve-label": {
-    "messageformat": "Yeni üzvləri təsdiqlə"
+    "messageformat": "Admin təsdiqi tələb olunur"
   },
   "icu:GroupLinkManagement--approve-info": {
     "messageformat": "Qrup bağlantısı vasitəsilə qoşulan yeni üzvlərin admin tərəfindən təsdiqlənməsi tələb olunsun."
@@ -3947,11 +4172,11 @@
   "icu:MessageAudio--playbackRatep5": {
     "messageformat": ",5"
   },
-  "icu:emptyInboxMessage": {
-    "messageformat": "Yuxarıdakı {composeIcon} düyməsinə klikləyin və mesaj göndəriləcək əlaqə və ya qrupları axtarın."
+  "icu:emptyInbox__title": {
+    "messageformat": "Çat yoxdur"
   },
-  "icu:composeIcon": {
-    "messageformat": "yarat düyməsi"
+  "icu:emptyInbox__subtitle": {
+    "messageformat": "Son çatlar burada görünəcək."
   },
   "icu:ForwardMessageModal__title": {
     "messageformat": "Yönləndir"
@@ -4074,7 +4299,7 @@
     "messageformat": "Bütün çat rənglərini sıfırla"
   },
   "icu:ChatColorPicker__confirm-reset-default": {
-    "messageformat": "İlkin vəziyyətinə qaytar"
+    "messageformat": "İlkin rəngləri sıfırla"
   },
   "icu:ChatColorPicker__confirm-reset": {
     "messageformat": "Sıfırla"
@@ -4394,6 +4619,12 @@
   "icu:AvatarColorPicker--choose": {
     "messageformat": "Bir rəng seçin"
   },
+  "icu:AttachmentDetailPill__retryDownload": {
+    "messageformat": "Yenidən endirməyə cəhd et"
+  },
+  "icu:AttachmentDetailPill__retryDownloadShort": {
+    "messageformat": "Yenidən sına"
+  },
   "icu:LeftPaneSetGroupMetadataHelper__avatar-modal-title": {
     "messageformat": "Qrup avatarı"
   },
@@ -4579,6 +4810,15 @@
   },
   "icu:DialogNetworkStatus__outage": {
     "messageformat": "Signal, hal-hazırda texniki çətinliklər yaşayır. Xidməti mümkün olan ən qısa vaxtda bərpa etmək üçün əlimizdən gələni edirik."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__title": {
+    "messageformat": "Yeniləmə tələb olunur"
+  },
+  "icu:InstallScreenUpdateDialog--update-required__body": {
+    "messageformat": "Mesajların sinxronlaşdırılmasını tamamlamaq üçün Signal Desktop-u indi yeniləyin."
+  },
+  "icu:InstallScreenUpdateDialog--update-required__action-update": {
+    "messageformat": "Yenilə"
   },
   "icu:InstallScreenUpdateDialog--unsupported-os__title": {
     "messageformat": "Yeniləmə tələb olunur"
@@ -4841,6 +5081,12 @@
   "icu:Stories__list-empty": {
     "messageformat": "Hal-hazırda göstəriləcək yeni bir hekayə yoxdur"
   },
+  "icu:Stories__list__empty--title": {
+    "messageformat": "Hekayə yoxdur"
+  },
+  "icu:Stories__list__empty--subtitle": {
+    "messageformat": "Növbəti yeniləmələr burada görünəcək."
+  },
   "icu:Stories__list--sending": {
     "messageformat": "Göndərilir..."
   },
@@ -4855,6 +5101,9 @@
   },
   "icu:Stories__placeholder--text": {
     "messageformat": "Bir hekayəyə baxmaq üçün klikləyin"
+  },
+  "icu:Stories__placeholder-with-icon--text-2": {
+    "messageformat": "Yeniləmə əlavə etmək üçün <newStoryButtonIcon></newStoryButtonIcon> üzərinə klikləyin."
   },
   "icu:Stories__from-to-group": {
     "messageformat": "{name}, {group} qrupuna"
@@ -5096,7 +5345,10 @@
   "icu:StoryViewsNRepliesModal__tab--replies": {
     "messageformat": "Cavab"
   },
-  "icu:StoryViewsNRepliesModal__reacted": {
+  "icu:StoryViewsNRepliesModal__reacted--you": {
+    "messageformat": "Hekayəyə reaksiya verildi"
+  },
+  "icu:StoryViewsNRepliesModal__reacted--someone-else": {
     "messageformat": "Hekayəyə reaksiya verildi"
   },
   "icu:StoryViewsNRepliesModal__not-a-member": {
@@ -5115,7 +5367,7 @@
     "messageformat": "Hekayə"
   },
   "icu:StoryListItem__unhide": {
-    "messageformat": "Hekayələri göstər"
+    "messageformat": "Hekayəni göstər"
   },
   "icu:StoryListItem__hide": {
     "messageformat": "Hekayəni gizlət"
@@ -5386,7 +5638,10 @@
     "messageformat": "Zəng tarixçəsi təmizlənsin?"
   },
   "icu:CallsTab__ConfirmClearCallHistory__Body": {
-    "messageformat": "Bu əmr bütün zəng tarixçəsini daimi olaraq təmizləyəcək"
+    "messageformat": "Bu əmr bütün zəng tarixçəsini daimi olaraq siləcək."
+  },
+  "icu:CallsTab__ConfirmClearCallHistory__Body--call-links": {
+    "messageformat": "Bu əmr bütün zəng tarixçəsini daimi olaraq siləcək. Yaratdığınız zəng keçidlərini paylaşdığınız insanlar artıq bu keçidləri görə bilməyəcək. "
   },
   "icu:CallsTab__ConfirmClearCallHistory__ConfirmButton": {
     "messageformat": "Təmizlə"
@@ -5394,11 +5649,23 @@
   "icu:CallsTab__ToastCallHistoryCleared": {
     "messageformat": "Zəng tarixçəsi təmizləndi"
   },
-  "icu:CallsTab__EmptyStateText": {
-    "messageformat": "Baxmaq və ya zəng başlatmaq üçün klikləyin"
+  "icu:CallsTab__ClearCallHistoryError--call-links": {
+    "messageformat": "Bütün zəng keçidlərini silmək mümkün olmadı. Bağlantınızı yoxlayıb yenidən cəhd edin."
+  },
+  "icu:CallsTab__ClearCallHistoryError": {
+    "messageformat": "Bütün zəng tarixçəsini təmizləmək mümkün olmadı. Bağlantınızı yoxlayıb yenidən cəhd edin."
+  },
+  "icu:CallsTab__EmptyStateText--with-icon-2": {
+    "messageformat": "Yeni bir audio və ya video zəng başlamaq üçün <newCallButtonIcon></newCallButtonIcon> üzərinə klikləyin."
+  },
+  "icu:CallsList__SearchInputPlaceholder--missed-calls": {
+    "messageformat": "Buraxılmış zəngləri axtar"
   },
   "icu:CallsList__SearchInputPlaceholder": {
     "messageformat": "Axtar"
+  },
+  "icu:CallsList__FilteredByMissedHeader": {
+    "messageformat": "Cavabsızlara görə filtrlənib"
   },
   "icu:CallsList__ToggleFilterByMissedLabel": {
     "messageformat": "Buraxılmışlara görə filtrlə"
@@ -5406,11 +5673,20 @@
   "icu:CallsList__ToggleFilterByMissed__RoleDescription": {
     "messageformat": "Aç/bağla"
   },
-  "icu:CallsList__EmptyState--noQuery": {
-    "messageformat": "Yeni zəng yoxdur. Bir dosta zəng edərək başlayın."
+  "icu:CallsList__EmptyState--noQuery__title": {
+    "messageformat": "Zəng yoxdur"
+  },
+  "icu:CallsList__EmptyState--noQuery__subtitle": {
+    "messageformat": "Son zənglər burada görünəcək."
   },
   "icu:CallsList__EmptyState--hasQuery": {
     "messageformat": "“{query}” üçün heç bir nəticə yoxdur"
+  },
+  "icu:CallsList__EmptyState--hasQueryAndMissedCalls": {
+    "messageformat": "Buraxılmış zənglərdə “{query}” sorğusu üçün heç bir nəticə tapılmadı"
+  },
+  "icu:CallsList__EmptyState--missedCalls": {
+    "messageformat": "Buraxılmış zəng yoxdur"
   },
   "icu:CallsList__CreateCallLink": {
     "messageformat": "Zəng Keçidi yarat"
@@ -5424,8 +5700,8 @@
   "icu:CallsList__ItemCallInfo--Missed": {
     "messageformat": "Cavabsız zəng"
   },
-  "icu:CallsList__ItemCallInfo--GroupCall": {
-    "messageformat": "Qrup zəngi"
+  "icu:CallsList__ItemCallInfo--Declined": {
+    "messageformat": "Rədd edildi"
   },
   "icu:CallsList__ItemCallInfo--CallLink": {
     "messageformat": "Zəng keçidi"
@@ -5437,7 +5713,7 @@
     "messageformat": "Cariz zəngdən çıxılsın?"
   },
   "icu:CallsList__LeaveCallDialogBody": {
-    "messageformat": "Yeni bir zəngə qoşulmazdan əvvəl cari zəngdən çıxmalısan."
+    "messageformat": "Yeni zəngə başlamazdan və ya qoşulmazdan əvvəl cari zəngdən çıxmalısınız."
   },
   "icu:CallsList__LeaveCallDialogButton--leave": {
     "messageformat": "Zəngi tərk et"
@@ -5451,32 +5727,59 @@
   "icu:CallsNewCallButton--return": {
     "messageformat": "Qayıt"
   },
-  "icu:CallsNewCallButtonTooltip--in-another-call": {
-    "messageformat": "Yeni bir zəngə qoşulmazdan əvvəl cari zəngdən çıxmalısan"
-  },
-  "icu:CallHistory__Description--Default": {
-    "messageformat": "{type, select, Audio {{direction, select, Outgoing {Gedən audio zəng} other {Gələn audio zəng}}} Video {{direction, select, Outgoing {Gedən görüntülü zəng} other {Görüntülü zəng gəlir}}} Group {{direction, select, Outgoing {Gedən qrup zəngi} other {Gələn qrup zəngi}}} other {{direction, select, Outgoing {Gedən zəng} other {Gələn zəng}}}}"
-  },
-  "icu:CallHistory__Description--Missed": {
-    "messageformat": "{type, select, Audio {Buraxılmış audio zəng} Video {Cavabsız görüntülü zəng} Group {Cavabsız qrup zəngi} other {Cavab verilməmiş zəng}}"
-  },
-  "icu:CallHistory__Description--Unanswered": {
-    "messageformat": "{type, select, Audio {Cavablanmamış audio zəng} Video {Cavablanmamış görüntülü zəng} Group {Cavablanmamış qrup zəngi} other {Cavablanmamış zəng}}"
-  },
-  "icu:CallHistory__Description--Declined": {
-    "messageformat": "{type, select, Audio {İmtina edilmiş audio-zəng} Video {İmtina edilmiş video-zəng} Group {İmtina edilmiş qrup zəngi} other {İmtina edilmiş zəng}}"
-  },
   "icu:CallHistory__Description--Adhoc": {
     "messageformat": "Zəng keçidi"
   },
+  "icu:CallHistory__DescriptionVideoCall--Default": {
+    "messageformat": "{direction, select, Outgoing {Gedən görüntülü zəng} other {Görüntülü zəng gəlir}}"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Missed": {
+    "messageformat": "Cavabsız görüntülü zəng"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Unanswered": {
+    "messageformat": "Cavablanmamış görüntülü zəng"
+  },
+  "icu:CallHistory__DescriptionVideoCall--Declined": {
+    "messageformat": "İmtina edilmiş video-zəng"
+  },
   "icu:CallLinkDetails__Join": {
     "messageformat": "Qoşul"
+  },
+  "icu:CallLinkDetails__AddCallNameLabel": {
+    "messageformat": "Zəng adı əlavə et"
+  },
+  "icu:CallLinkDetails__EditCallNameLabel": {
+    "messageformat": "Zəngin adını redaktə et"
+  },
+  "icu:CallLinkDetails__ApproveAllMembersLabel": {
+    "messageformat": "Admin təsdiqi tələb olunur"
+  },
+  "icu:CallLinkDetails__SettingTooltip--disabled-for-active-call": {
+    "messageformat": "Zəng aktiv ikən bu parametri dəyişmək mümkün deyil"
   },
   "icu:CallLinkDetails__CopyLink": {
     "messageformat": "Keçidi kopyala"
   },
   "icu:CallLinkDetails__ShareLinkViaSignal": {
     "messageformat": "Keçidi Signal vasitəsilə paylaş"
+  },
+  "icu:CallLinkDetails__DeleteLink": {
+    "messageformat": "Keçidi sil"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Title": {
+    "messageformat": "Zəng keçidi silinsin?"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Body": {
+    "messageformat": "Bu keçid artıq onu istifadə edənlərin heç biri üçün aktiv olmayacaq."
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Cancel": {
+    "messageformat": "Ləğv et"
+  },
+  "icu:CallLinkDetails__DeleteLinkModal__Delete": {
+    "messageformat": "Sil"
+  },
+  "icu:CallLinkDetails__DeleteLinkTooltip--disabled-for-active-call": {
+    "messageformat": "Zəng aktiv ikən bu keçidi silmək mümkün deyil"
   },
   "icu:CallLinkEditModal__Title": {
     "messageformat": "Zəng keçidi təfərrüatları"
@@ -5487,17 +5790,29 @@
   "icu:CallLinkEditModal__AddCallNameLabel": {
     "messageformat": "Zəng adı əlavə et"
   },
-  "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
-    "messageformat": "Bütün üzvləri təsdiqlə"
+  "icu:CallLinkEditModal__EditCallNameLabel": {
+    "messageformat": "Zəngin adını redaktə et"
   },
-  "icu:CallLinkEditModal__ApproveAllMembers__Option--Off": {
+  "icu:CallLinkEditModal__InputLabel--ApproveAllMembers": {
+    "messageformat": "Admin təsdiqi tələb olunur"
+  },
+  "icu:CallLinkPendingParticipantModal__ApproveButtonLabel": {
+    "messageformat": "Girişi təsdiqlə"
+  },
+  "icu:CallLinkPendingParticipantModal__DenyButtonLabel": {
+    "messageformat": "Girişdən imtina et"
+  },
+  "icu:CallLinkRestrictionsSelect__Option--Off": {
     "messageformat": "Bağlı"
   },
-  "icu:CallLinkEditModal__ApproveAllMembers__Option--On": {
+  "icu:CallLinkRestrictionsSelect__Option--On": {
     "messageformat": "Açıq"
   },
   "icu:CallLinkAddNameModal__Title": {
     "messageformat": "Zəng adı əlavə et"
+  },
+  "icu:CallLinkAddNameModal__Title--Edit": {
+    "messageformat": "Zəngin adını redaktə et"
   },
   "icu:CallLinkAddNameModal__NameLabel": {
     "messageformat": "Zəngin adı"
@@ -5542,10 +5857,19 @@
     "messageformat": "Kiçik spesifik tənzimləmələr, xəta düzəlişləri və məhsuldarlığın artırılması. Signal istifadə etdiyiniz üçün təşəkkürlər!",
     "ignoreUnused": true
   },
-  "icu:WhatsNew__v7.16--0": {
-    "messageformat": "Zəngin yenidən qoşulması zamanı həmin zəng görünüşünü piktoqram şəklində kiçiltmə düyməsinin qarşısını alan xətanı aradan qaldırdıq. Artıq internet bağlantınız kəsilsə belə əvvəlki çatlarla bağlantını kəsməli olmayacaqsınız."
+  "icu:WhatsNew__v7.39--0": {
+    "messageformat": "Artıq sensorlu ekranı olan cihazlarda çat siyahısının yan panelinin ölçüsünü tənzimləyə bilərsiniz. Bundan sonra onu sürüşdürməyə çalışdığınız zaman cihazınızın ekranındakı barmaq izləri geridə qalan yeganə dəlil olacaq."
   },
-  "icu:WhatsNew__v7.17--0": {
-    "messageformat": "We wanted things to be slicker and quicker for sticker clickers, so we fixed a bug that sometimes prevented Signal from launching the sticker viewer if you tried to open a sticker pack link while the app was closed."
+  "icu:WhatsNew__v7.40--0": {
+    "messageformat": "Seçildikdən sonra bəzi çatların düzgün açılmasına mane olan nadir görünən bir nasazlığı aradan qaldırdıq ki, siz həmin çatları xatırlayarkən Signal Desktop-da boşluq görünməsin."
+  },
+  "icu:WhatsNew__v7.40--1": {
+    "messageformat": "İndi əsas Signal cihazınızı yeni Masaüstü cihazınızla əlaqələndirdiyiniz zaman çat tarixçənizi və son 45 günlük media fayllarınızı da köçürə bilərsiniz. Köçürmə prosesi ucdan-uca şifrələnib və tamamilə öz seçiminizdən asılıdır. \"Keçmiş keçmişdə qaldı\" demək və ya onu özünüzlə daşımaq artıq yalnız sizdən asılıdır."
+  },
+  "icu:WhatsNew__v7.43--0": {
+    "messageformat": "\"Sevgililər günü\" mükəmməl uyğunlaşmaların günüdür. Biz də Android və iOS ilə uyğunlaşdırma üçün Desktop tətbiqində düymə üzərindəki mətni yenilədik. Bu sizə çox kiçik bir dəyişiklik kimi gələ bilər, amma sevginizi göstərməyin yolu da kiçik incəliklərdən keçir."
+  },
+  "icu:WhatsNew__v7.44--0": {
+    "messageformat": "We fixed a minor animation bug during group calls. We apologize in advance if the most exciting part of your day was switching to grid view during a meeting and trying to catch the moment where the video squares from people who joined late sometimes partially obscured the slide deck your boss was presenting."
   }
 }

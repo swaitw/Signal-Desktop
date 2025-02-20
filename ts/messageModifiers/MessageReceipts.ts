@@ -4,8 +4,10 @@
 import { z } from 'zod';
 import { groupBy } from 'lodash';
 
-import type { MessageModel } from '../models/messages';
-import type { MessageAttributesType } from '../model-types.d';
+import type {
+  MessageAttributesType,
+  ReadonlyMessageAttributesType,
+} from '../model-types.d';
 import type { SendStateByConversationId } from '../messages/MessageSendState';
 import { isOutgoing, isStory } from '../state/selectors/message';
 import { getOwn } from '../util/getOwn';
@@ -18,8 +20,8 @@ import {
   UNDELIVERED_SEND_STATUSES,
   sendStateReducer,
 } from '../messages/MessageSendState';
+import { DataReader, DataWriter } from '../sql/Client';
 import type { DeleteSentProtoRecipientOptionsType } from '../sql/Interface';
-import dataInterface from '../sql/Client';
 import * as log from '../logging/log';
 import { getSourceServiceId } from '../messages/helpers';
 import { getMessageSentTimestamp } from '../util/getMessageSentTimestamp';
@@ -30,8 +32,10 @@ import {
   RECEIPT_BATCHER_WAIT_MS,
 } from '../types/Receipt';
 import { drop } from '../util/drop';
+import { getMessageById } from '../messages/getMessageById';
+import { MessageModel } from '../models/messages';
 
-const { deleteSentProtoRecipient, removeSyncTaskById } = dataInterface;
+const { deleteSentProtoRecipient, removeSyncTaskById } = DataWriter;
 
 export const messageReceiptTypeSchema = z.enum(['Delivery', 'Read', 'View']);
 
@@ -76,12 +80,11 @@ const processReceiptBatcher = createWaitBatcher({
     > = new Map();
 
     function addReceiptAndTargetMessage(
-      message: MessageAttributesType,
+      message: MessageModel,
       receipt: MessageReceiptAttributesType
     ): void {
       const existing = receiptsByMessageId.get(message.id);
       if (!existing) {
-        window.MessageCache.toMessageAttributes(message);
         receiptsByMessageId.set(message.id, [receipt]);
       } else {
         existing.push(receipt);
@@ -99,11 +102,11 @@ const processReceiptBatcher = createWaitBatcher({
 
       const messagesMatchingTimestamp =
         // eslint-disable-next-line no-await-in-loop
-        await window.Signal.Data.getMessagesBySentAt(sentAt);
+        await DataReader.getMessagesBySentAt(sentAt);
 
       if (messagesMatchingTimestamp.length === 0) {
         // eslint-disable-next-line no-await-in-loop
-        const reaction = await window.Signal.Data.getReactionByTimestamp(
+        const reaction = await DataReader.getReactionByTimestamp(
           window.ConversationController.getOurConversationIdOrThrow(),
           sentAt
         );
@@ -149,9 +152,10 @@ const processReceiptBatcher = createWaitBatcher({
           );
 
           if (targetMessages.length) {
-            targetMessages.forEach(msg =>
-              addReceiptAndTargetMessage(msg, receipt)
-            );
+            targetMessages.forEach(msg => {
+              const model = window.MessageCache.register(new MessageModel(msg));
+              addReceiptAndTargetMessage(model, receipt);
+            });
           } else {
             // Nope, no target message was found
             const { receiptSync } = receipt;
@@ -186,54 +190,47 @@ async function processReceiptsForMessage(
   }
 
   // Get message from cache or DB
-  const message = await window.MessageCache.resolveAttributes(
-    'processReceiptsForMessage',
-    messageId
-  );
+  const message = await getMessageById(messageId);
+  if (!message) {
+    throw new Error(
+      `processReceiptsForMessage: Failed to find message ${messageId}`
+    );
+  }
 
-  const { updatedMessage, validReceipts } = await updateMessageWithReceipts(
-    message,
-    receipts
-  );
+  const { validReceipts } = await updateMessageWithReceipts(message, receipts);
 
-  // Save it to cache & to DB
-  await window.MessageCache.setAttributes({
-    messageId,
-    messageAttributes: updatedMessage,
-    skipSaveToDatabase: false,
-  });
+  await window.MessageCache.saveMessage(message.attributes);
 
   // Confirm/remove receipts, and delete sent protos
   for (const receipt of validReceipts) {
     // eslint-disable-next-line no-await-in-loop
     await remove(receipt);
-    drop(addToDeleteSentProtoBatcher(receipt, updatedMessage));
+    drop(addToDeleteSentProtoBatcher(receipt, message.attributes));
   }
 
   // notify frontend listeners
   const conversation = window.ConversationController.get(
-    message.conversationId
+    message.get('conversationId')
   );
   conversation?.debouncedUpdateLastMessage?.();
 }
 
 async function updateMessageWithReceipts(
-  message: MessageAttributesType,
+  message: MessageModel,
   receipts: Array<MessageReceiptAttributesType>
 ): Promise<{
-  updatedMessage: MessageAttributesType;
   validReceipts: Array<MessageReceiptAttributesType>;
 }> {
-  const logId = `updateMessageWithReceipts(timestamp=${message.timestamp})`;
+  const logId = `updateMessageWithReceipts(timestamp=${message.get('timestamp')})`;
 
-  const toRemove: Array<MessageReceiptAttributesType> = [];
+  const droppedReceipts: Array<MessageReceiptAttributesType> = [];
   const receiptsToProcess = receipts.filter(receipt => {
-    if (shouldDropReceipt(receipt, message)) {
+    if (shouldDropReceipt(receipt, message.attributes)) {
       const { receiptSync } = receipt;
       log.info(
         `${logId}: Dropping a receipt ${receiptSync.type} for sentAt=${receiptSync.messageSentAt}`
       );
-      toRemove.push(receipt);
+      droppedReceipts.push(receipt);
       return false;
     }
 
@@ -245,22 +242,22 @@ async function updateMessageWithReceipts(
     return true;
   });
 
-  await Promise.all(toRemove.map(remove));
-
   log.info(
     `${logId}: batch processing ${receipts.length}` +
       ` receipt${receipts.length === 1 ? '' : 's'}`
   );
 
   // Generate the updated message synchronously
-  let updatedMessage: MessageAttributesType = { ...message };
+  let { attributes } = message;
   for (const receipt of receiptsToProcess) {
-    updatedMessage = {
-      ...updatedMessage,
-      ...updateMessageSendStateWithReceipt(updatedMessage, receipt),
+    attributes = {
+      ...attributes,
+      ...updateMessageSendStateWithReceipt(attributes, receipt),
     };
   }
-  return { updatedMessage, validReceipts: receiptsToProcess };
+  message.set(attributes);
+
+  return { validReceipts: receiptsToProcess };
 }
 
 const deleteSentProtoBatcher = createWaitBatcher({
@@ -271,9 +268,8 @@ const deleteSentProtoBatcher = createWaitBatcher({
     log.info(
       `MessageReceipts: Batching ${items.length} sent proto recipients deletes`
     );
-    const { successfulPhoneNumberShares } = await deleteSentProtoRecipient(
-      items
-    );
+    const { successfulPhoneNumberShares } =
+      await deleteSentProtoRecipient(items);
 
     for (const serviceId of successfulPhoneNumberShares) {
       const convo = window.ConversationController.get(serviceId);
@@ -307,7 +303,7 @@ function getTargetMessage({
   sourceConversationId: string;
   messagesMatchingTimestamp: ReadonlyArray<MessageAttributesType>;
   targetTimestamp: number;
-}): MessageAttributesType | null {
+}): MessageModel | null {
   if (messagesMatchingTimestamp.length === 0) {
     return null;
   }
@@ -363,7 +359,7 @@ function getTargetMessage({
   }
 
   const message = matchingMessages[0];
-  return window.MessageCache.toMessageAttributes(message);
+  return window.MessageCache.register(new MessageModel(message));
 }
 const wasDeliveredWithSealedSender = (
   conversationId: string,
@@ -377,7 +373,7 @@ const wasDeliveredWithSealedSender = (
 
 const shouldDropReceipt = (
   receipt: MessageReceiptAttributesType,
-  message: MessageAttributesType
+  message: ReadonlyMessageAttributesType
 ): boolean => {
   const { type } = receipt.receiptSync;
   switch (type) {
@@ -396,25 +392,25 @@ const shouldDropReceipt = (
 };
 
 export async function forMessage(
-  message: MessageModel
+  message: ReadonlyMessageAttributesType
 ): Promise<Array<MessageReceiptAttributesType>> {
-  if (!isOutgoing(message.attributes) && !isStory(message.attributes)) {
+  if (!isOutgoing(message) && !isStory(message)) {
     return [];
   }
 
   const logId = `MessageReceipts.forMessage(${getMessageIdForLogging(
-    message.attributes
+    message
   )})`;
 
   const ourAci = window.textsecure.storage.user.getCheckedAci();
-  const sourceServiceId = getSourceServiceId(message.attributes);
+  const sourceServiceId = getSourceServiceId(message);
   if (ourAci !== sourceServiceId) {
     return [];
   }
 
   const receiptValues = Array.from(cachedReceipts.values());
 
-  const sentAt = getMessageSentTimestamp(message.attributes, { log });
+  const sentAt = getMessageSentTimestamp(message, { log });
   const result = receiptValues.filter(
     item => item.receiptSync.messageSentAt === sentAt
   );
@@ -428,7 +424,7 @@ export async function forMessage(
   }
 
   return result.filter(receipt => {
-    if (shouldDropReceipt(receipt, message.attributes)) {
+    if (shouldDropReceipt(receipt, message)) {
       log.info(
         `${logId}: Dropping an early receipt ${receipt.receiptSync.type} for message ${sentAt}`
       );

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { isEqual } from 'lodash';
+import { DataReader } from '../sql/Client';
 import type { StoryRecipientUpdateEvent } from '../textsecure/messageReceiverEvents';
 import { normalizeServiceId } from '../types/ServiceId';
 import { normalizeStoryDistributionId } from '../types/StoryDistributionId';
@@ -12,6 +13,8 @@ import { isStory } from '../state/selectors/message';
 import { queueUpdateMessage } from './messageBatcher';
 import { isMe } from './whatTypeOfConversation';
 import { drop } from './drop';
+import { handleDeleteForEveryone } from './deleteForEveryone';
+import { MessageModel } from '../models/messages';
 
 export async function onStoryRecipientUpdate(
   event: StoryRecipientUpdateEvent
@@ -90,7 +93,7 @@ export async function onStoryRecipientUpdate(
         window.ConversationController.getOurConversationIdOrThrow();
       const now = Date.now();
 
-      const messages = await window.Signal.Data.getMessagesBySentAt(timestamp);
+      const messages = await DataReader.getMessagesBySentAt(timestamp);
 
       // Now we figure out who needs to be added and who needs to removed
       const handledMessages = messages.filter(item => {
@@ -161,11 +164,7 @@ export async function onStoryRecipientUpdate(
           return true;
         }
 
-        const message = window.MessageCache.__DEPRECATED$register(
-          item.id,
-          item,
-          'onStoryRecipientUpdate'
-        );
+        const message = window.MessageCache.register(new MessageModel(item));
 
         const sendStateConversationIds = new Set(
           Object.keys(nextSendStateByConversationId)
@@ -189,7 +188,7 @@ export async function onStoryRecipientUpdate(
           // sent timestamp doesn't happen (it would return all copies of the
           // story, not just the one we want to delete).
           drop(
-            message.handleDeleteForEveryone({
+            handleDeleteForEveryone(message, {
               fromId: ourConversationId,
               serverTimestamp: Number(item.serverTimestamp),
               targetSentTimestamp: item.timestamp,

@@ -10,7 +10,7 @@ import {
 } from '../../components/conversation/ConversationHeader';
 import { getCannotLeaveBecauseYouAreLastAdmin } from '../../components/conversation/conversation-details/ConversationDetails';
 import { useMinimalConversation } from '../../hooks/useMinimalConversation';
-import { CallMode } from '../../types/Calling';
+import { CallMode } from '../../types/CallDisposition';
 import { PanelType } from '../../types/Panels';
 import { StoryViewModeType } from '../../types/Stories';
 import { strictAssert } from '../../util/assert';
@@ -43,6 +43,8 @@ import { getIntl, getTheme, getUserACI } from '../selectors/user';
 import { useItemsActions } from '../ducks/items';
 import { getLocalDeleteWarningShown } from '../selectors/items';
 import { getDeleteSyncSendEnabled } from '../selectors/items-extra';
+import { isConversationEverUnregistered } from '../../util/isConversationUnregistered';
+import { isDirectConversation } from '../../util/whatTypeOfConversation';
 
 export type OwnProps = {
   id: string;
@@ -56,7 +58,7 @@ const useOutgoingCallButtonStyle = (
   const callSelector = useSelector(getCallSelector);
   strictAssert(ourAci, 'useOutgoingCallButtonStyle missing our uuid');
 
-  if (activeCall != null) {
+  if (activeCall?.conversationId === conversation.id) {
     return OutgoingCallButtonStyle.None;
   }
 
@@ -100,6 +102,8 @@ export const SmartConversationHeader = memo(function SmartConversationHeader({
   const hasPanelShowing = useSelector(getHasPanelOpen);
   const outgoingCallButtonStyle = useOutgoingCallButtonStyle(conversation);
   const theme = useSelector(getTheme);
+  const activeCall = useSelector(getActiveCallState);
+  const hasActiveCall = Boolean(activeCall);
 
   const {
     destroyMessages,
@@ -239,7 +243,7 @@ export const SmartConversationHeader = memo(function SmartConversationHeader({
     pushPanelForConversation({ type: PanelType.ConversationDetails });
   }, [pushPanelForConversation]);
 
-  const onViewRecentMedia = useCallback(() => {
+  const onViewAllMedia = useCallback(() => {
     pushPanelForConversation({ type: PanelType.AllMedia });
   }, [pushPanelForConversation]);
 
@@ -264,6 +268,7 @@ export const SmartConversationHeader = memo(function SmartConversationHeader({
       cannotLeaveBecauseYouAreLastAdmin={cannotLeaveBecauseYouAreLastAdmin}
       conversation={minimalConversation}
       conversationName={conversationName}
+      hasActiveCall={hasActiveCall}
       hasPanelShowing={hasPanelShowing}
       hasStories={hasStories}
       i18n={i18n}
@@ -272,7 +277,11 @@ export const SmartConversationHeader = memo(function SmartConversationHeader({
       isMissingMandatoryProfileSharing={isMissingMandatoryProfileSharing}
       isSelectMode={isSelectMode}
       isSignalConversation={isSignalConversation(conversation)}
-      isSMSOnly={isConversationSMSOnly(conversation)}
+      isSmsOnlyOrUnregistered={
+        isDirectConversation(conversation) &&
+        (isConversationSMSOnly(conversation) ||
+          isConversationEverUnregistered(conversation))
+      }
       onConversationAccept={onConversationAccept}
       onConversationArchive={onConversationArchive}
       onConversationBlock={onConversationBlock}
@@ -295,7 +304,7 @@ export const SmartConversationHeader = memo(function SmartConversationHeader({
       onSelectModeEnter={onSelectModeEnter}
       onShowMembers={onShowMembers}
       onViewConversationDetails={onViewConversationDetails}
-      onViewRecentMedia={onViewRecentMedia}
+      onViewAllMedia={onViewAllMedia}
       onViewUserStories={onViewUserStories}
       outgoingCallButtonStyle={outgoingCallButtonStyle}
       setLocalDeleteWarningShown={setLocalDeleteWarningShown}

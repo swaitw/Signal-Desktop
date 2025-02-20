@@ -22,6 +22,11 @@ export const isShowingAnyModal = createSelector(
     })
 );
 
+export const getAttachmentNotAvailableModalType = createSelector(
+  getGlobalModalsState,
+  ({ attachmentNotAvailableModalType }) => attachmentNotAvailableModalType
+);
+
 export const getCallLinkEditModalRoomId = createSelector(
   getGlobalModalsState,
   ({ callLinkEditModalRoomId }) => callLinkEditModalRoomId
@@ -30,6 +35,17 @@ export const getCallLinkEditModalRoomId = createSelector(
 export const getCallLinkAddNameModalRoomId = createSelector(
   getGlobalModalsState,
   ({ callLinkAddNameModalRoomId }) => callLinkAddNameModalRoomId
+);
+
+export const getCallLinkPendingParticipantContactId = createSelector(
+  getGlobalModalsState,
+  ({ callLinkPendingParticipantContactId }) =>
+    callLinkPendingParticipantContactId
+);
+
+export const getConfirmLeaveCallModalState = createSelector(
+  getGlobalModalsState,
+  ({ confirmLeaveCallModalState }) => confirmLeaveCallModalState
 );
 
 export const getContactModalState = createSelector(

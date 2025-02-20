@@ -16,6 +16,7 @@ import * as Errors from '../types/errors';
 import type { StickerPackType as StickerPackDBType } from '../sql/Interface';
 import type { MIMEType } from '../types/MIME';
 import * as Bytes from '../Bytes';
+import { sha256 } from '../Crypto';
 import * as LinkPreview from '../types/LinkPreview';
 import * as Stickers from '../types/Stickers';
 import * as VisualAttachment from '../types/VisualAttachment';
@@ -29,8 +30,9 @@ import { imageToBlurHash } from '../util/imageToBlurHash';
 import { maybeParseUrl } from '../util/url';
 import { sniffImageMimeType } from '../util/sniffImageMimeType';
 import { drop } from '../util/drop';
-import { linkCallRoute } from '../util/signalRoutes';
 import { calling } from './calling';
+import { getKeyFromCallLink } from '../util/callLinks';
+import { getRoomIdFromCallLink } from '../util/callLinksRingrtc';
 
 const LINK_PREVIEW_TIMEOUT = 60 * SECOND;
 
@@ -265,29 +267,27 @@ export function getLinkPreviewForSend(
 export function sanitizeLinkPreview(
   item: LinkPreviewResult | LinkPreviewWithHydratedData
 ): LinkPreviewWithHydratedData {
-  if (item.image) {
-    // We eliminate the ObjectURL here, unneeded for send or save
-    return {
-      ...item,
-      image: omit(item.image, 'url'),
-      title: dropNull(item.title),
-      description: dropNull(item.description),
-      date: dropNull(item.date),
-      domain: LinkPreview.getDomain(item.url),
-      isStickerPack: LinkPreview.isStickerPack(item.url),
-      isCallLink: LinkPreview.isCallLink(item.url),
-    };
-  }
-
-  return {
+  const isCallLink = LinkPreview.isCallLink(item.url);
+  const base: LinkPreviewWithHydratedData = {
     ...item,
     title: dropNull(item.title),
     description: dropNull(item.description),
     date: dropNull(item.date),
     domain: LinkPreview.getDomain(item.url),
     isStickerPack: LinkPreview.isStickerPack(item.url),
-    isCallLink: LinkPreview.isCallLink(item.url),
+    isCallLink,
+    callLinkRoomId: isCallLink ? getRoomIdFromCallLink(item.url) : undefined,
   };
+
+  if (item.image) {
+    // We eliminate the ObjectURL here, unneeded for send or save
+    return {
+      ...base,
+      image: omit(item.image, 'url'),
+    };
+  }
+
+  return base;
 }
 
 async function getPreview(
@@ -364,6 +364,7 @@ async function getPreview(
         data,
         size: data.byteLength,
         ...dimensions,
+        plaintextHash: Bytes.toHex(sha256(data)),
         contentType: stringToMIMEType(withBlob.file.type),
         blurHash,
       };
@@ -575,15 +576,10 @@ async function getCallLinkPreview(
   url: string,
   _abortSignal: Readonly<AbortSignal>
 ): Promise<null | LinkPreviewResult> {
-  const parsedUrl = linkCallRoute.fromUrl(url);
-  if (parsedUrl == null) {
-    throw new Error('Failed to parse call link URL');
-  }
-
-  const callLinkRootKey = CallLinkRootKey.parse(parsedUrl.args.key);
-  const readResult = await calling.readCallLink({ callLinkRootKey });
-  const { callLinkState } = readResult;
-  if (!callLinkState || callLinkState.revoked) {
+  const keyString = getKeyFromCallLink(url);
+  const callLinkRootKey = CallLinkRootKey.parse(keyString);
+  const callLinkState = await calling.readCallLink(callLinkRootKey);
+  if (callLinkState == null || callLinkState.revoked) {
     return null;
   }
 

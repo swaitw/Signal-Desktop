@@ -5,10 +5,15 @@ import PQueue from 'p-queue';
 import { batch } from 'react-redux';
 
 import type { MessageAttributesType } from '../model-types.d';
+import { MessageModel } from '../models/messages';
+
+import * as Errors from '../types/errors';
+import * as log from '../logging/log';
+
+import { DataReader, DataWriter } from '../sql/Client';
 import { deletePackReference } from '../types/Stickers';
 import { isStory } from '../messages/helpers';
 import { isDirectConversation } from './whatTypeOfConversation';
-import * as log from '../logging/log';
 import { getCallHistorySelector } from '../state/selectors/callHistory';
 import {
   DirectCallStatus,
@@ -16,20 +21,68 @@ import {
   AdhocCallStatus,
 } from '../types/CallDisposition';
 import { getMessageIdForLogging } from './idForLogging';
-import type { SingleProtoJobQueue } from '../jobs/singleProtoJobQueue';
+import { singleProtoJobQueue } from '../jobs/singleProtoJobQueue';
 import { MINUTE } from './durations';
 import { drop } from './drop';
+import { hydrateStoryContext } from './hydrateStoryContext';
+import { update as updateExpiringMessagesService } from '../services/expiringMessagesDeletion';
+import { tapToViewMessagesDeletionService } from '../services/tapToViewMessagesDeletionService';
+
+export async function postSaveUpdates(): Promise<void> {
+  await updateExpiringMessagesService();
+  await tapToViewMessagesDeletionService.update();
+}
+
+export async function eraseMessageContents(
+  message: MessageModel,
+  additionalProperties = {},
+  shouldPersist = true
+): Promise<void> {
+  log.info(
+    `Erasing data for message ${getMessageIdForLogging(message.attributes)}`
+  );
+
+  // Note: There are cases where we want to re-erase a given message. For example, when
+  //   a viewed (or outgoing) View-Once message is deleted for everyone.
+
+  try {
+    await deleteMessageData(message.attributes);
+  } catch (error) {
+    log.error(
+      `Error erasing data for message ${getMessageIdForLogging(message.attributes)}:`,
+      Errors.toLogFormat(error)
+    );
+  }
+
+  message.set({
+    attachments: [],
+    body: '',
+    bodyRanges: undefined,
+    contact: [],
+    editHistory: undefined,
+    isErased: true,
+    preview: [],
+    quote: undefined,
+    sticker: undefined,
+    ...additionalProperties,
+  });
+  window.ConversationController.get(
+    message.attributes.conversationId
+  )?.debouncedUpdateLastMessage();
+
+  if (shouldPersist) {
+    await window.MessageCache.saveMessage(message.attributes);
+  }
+
+  await DataWriter.deleteSentProtoByMessageId(message.id);
+}
 
 export async function cleanupMessages(
   messages: ReadonlyArray<MessageAttributesType>,
   {
     fromSync,
-    markCallHistoryDeleted,
-    singleProtoJobQueue,
   }: {
     fromSync?: boolean;
-    markCallHistoryDeleted: (callId: string) => Promise<void>;
-    singleProtoJobQueue: SingleProtoJobQueue;
   }
 ): Promise<void> {
   // First, handle any calls that need to be deleted
@@ -39,8 +92,6 @@ export async function cleanupMessages(
       messages.map((message: MessageAttributesType) => async () => {
         await maybeDeleteCall(message, {
           fromSync,
-          markCallHistoryDeleted,
-          singleProtoJobQueue,
         });
       })
     )
@@ -75,7 +126,7 @@ export function cleanupMessageFromMemory(message: MessageAttributesType): void {
   const parentConversation = window.ConversationController.get(conversationId);
   parentConversation?.debouncedUpdateLastMessage();
 
-  window.MessageCache.__DEPRECATED$unregister(id);
+  window.MessageCache.unregister(id);
 }
 
 async function cleanupStoryReplies(
@@ -93,10 +144,7 @@ async function cleanupStoryReplies(
     parentConversation && !isDirectConversation(parentConversation.attributes)
   );
 
-  const replies = await window.Signal.Data.getRecentStoryReplies(
-    storyId,
-    pagination
-  );
+  const replies = await DataReader.getRecentStoryReplies(storyId, pagination);
 
   const logId = `cleanupStoryReplies(${storyId}/isGroup=${isGroupConversation})`;
   const lastMessage = replies[replies.length - 1];
@@ -122,24 +170,18 @@ async function cleanupStoryReplies(
     // Cleanup all group replies
     await Promise.all(
       replies.map(reply => {
-        const replyMessageModel = window.MessageCache.__DEPRECATED$register(
-          reply.id,
-          reply,
-          'cleanupStoryReplies/group'
+        const replyMessageModel = window.MessageCache.register(
+          new MessageModel(reply)
         );
-        return replyMessageModel.eraseContents();
+        return eraseMessageContents(replyMessageModel);
       })
     );
   } else {
     // Refresh the storyReplyContext data for 1:1 conversations
     await Promise.all(
       replies.map(async reply => {
-        const model = window.MessageCache.__DEPRECATED$register(
-          reply.id,
-          reply,
-          'cleanupStoryReplies/1:1'
-        );
-        await model.hydrateStoryContext(story, {
+        const model = window.MessageCache.register(new MessageModel(reply));
+        await hydrateStoryContext(model.id, story, {
           shouldSave: true,
           isStoryErased: true,
         });
@@ -177,12 +219,8 @@ export async function maybeDeleteCall(
   message: MessageAttributesType,
   {
     fromSync,
-    markCallHistoryDeleted,
-    singleProtoJobQueue,
   }: {
     fromSync?: boolean;
-    markCallHistoryDeleted: (callId: string) => Promise<void>;
-    singleProtoJobQueue: SingleProtoJobQueue;
   }
 ): Promise<void> {
   const { callId } = message;
@@ -216,6 +254,6 @@ export async function maybeDeleteCall(
       window.textsecure.MessageSender.getDeleteCallEvent(callHistory)
     );
   }
-  await markCallHistoryDeleted(callId);
+  await DataWriter.markCallHistoryDeleted(callId);
   window.reduxActions.callHistory.removeCallHistory(callId);
 }

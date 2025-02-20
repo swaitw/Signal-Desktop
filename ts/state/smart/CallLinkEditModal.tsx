@@ -4,7 +4,7 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { CallLinkEditModal } from '../../components/CallLinkEditModal';
 import { useCallingActions } from '../ducks/calling';
-import { getCallLinkSelector } from '../selectors/calling';
+import { getActiveCallState, getCallLinkSelector } from '../selectors/calling';
 import * as log from '../../logging/log';
 import { getIntl } from '../selectors/user';
 import { useGlobalModalActions } from '../ducks/globalModals';
@@ -14,12 +14,9 @@ import { strictAssert } from '../../util/assert';
 import { linkCallRoute } from '../../util/signalRoutes';
 import { copyCallLink } from '../../util/copyLinksWithToast';
 import { drop } from '../../util/drop';
-import { isCallLinksCreateEnabled } from '../../util/callLinks';
 
 export const SmartCallLinkEditModal = memo(
   function SmartCallLinkEditModal(): JSX.Element | null {
-    strictAssert(isCallLinksCreateEnabled(), 'Call links creation is disabled');
-
     const roomId = useSelector(getCallLinkEditModalRoomId);
     strictAssert(roomId, 'Expected roomId to be set');
 
@@ -74,6 +71,11 @@ export const SmartCallLinkEditModal = memo(
       toggleCallLinkEditModal(null);
     }, [callLink, startCallLinkLobby, toggleCallLinkEditModal]);
 
+    const activeCall = useSelector(getActiveCallState);
+    const hasActiveCall = Boolean(
+      activeCall && callLink && activeCall?.conversationId !== callLink?.roomId
+    );
+
     if (!callLink) {
       log.error(
         'SmartCallLinkEditModal: No call link found for roomId',
@@ -86,6 +88,7 @@ export const SmartCallLinkEditModal = memo(
       <CallLinkEditModal
         i18n={i18n}
         callLink={callLink}
+        hasActiveCall={hasActiveCall}
         onClose={handleClose}
         onCopyCallLink={handleCopyCallLink}
         onOpenCallLinkAddNameModal={handleOpenCallLinkAddNameModal}

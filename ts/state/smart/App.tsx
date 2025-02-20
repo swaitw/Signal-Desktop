@@ -3,6 +3,7 @@
 import React, { memo } from 'react';
 import { useSelector } from 'react-redux';
 import type { VerificationTransport } from '../../types/VerificationTransport';
+import { DataWriter } from '../../sql/Client';
 import { App } from '../../components/App';
 import OS from '../../util/os/osMain';
 import { getConversation } from '../../util/getConversation';
@@ -25,7 +26,7 @@ import { useStoriesActions } from '../ducks/stories';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { ModalContainer } from '../../components/ModalContainer';
 import { SmartInbox } from './Inbox';
-import { getAppView } from '../selectors/app';
+import { getApp } from '../selectors/app';
 
 function renderInbox(): JSX.Element {
   return <SmartInbox />;
@@ -101,7 +102,7 @@ async function uploadProfile({
   us.set('profileName', firstName);
   us.set('profileFamilyName', lastName);
   us.captureChange('standaloneProfile');
-  await window.Signal.Data.updateConversation(us.attributes);
+  await DataWriter.updateConversation(us.attributes);
 
   await writeProfile(getConversation(us), {
     keepAvatar: true,
@@ -109,7 +110,7 @@ async function uploadProfile({
 }
 
 export const SmartApp = memo(function SmartApp() {
-  const appView = useSelector(getAppView);
+  const state = useSelector(getApp);
   const isMaximized = useSelector(getIsMainWindowMaximized);
   const isFullScreen = useSelector(getIsMainWindowFullScreen);
   const hasSelectedStoryData = useSelector(getHasSelectedStoryData);
@@ -123,7 +124,7 @@ export const SmartApp = memo(function SmartApp() {
 
   return (
     <App
-      appView={appView}
+      state={state}
       isMaximized={isMaximized}
       isFullScreen={isFullScreen}
       getCaptchaToken={getCaptchaToken}

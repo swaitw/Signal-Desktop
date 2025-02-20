@@ -11,7 +11,7 @@ import type { ReadonlyDeep } from 'type-fest';
 import type { StateType } from '../reducer';
 import type {
   LastMessageStatus,
-  MessageAttributesType,
+  ReadonlyMessageAttributesType,
   MessageReactionType,
   QuotedAttachmentType,
   ShallowChallengeError,
@@ -43,7 +43,11 @@ import type {
 } from '../../components/conversation/GroupNotification';
 import type { PropsType as ProfileChangeNotificationPropsType } from '../../components/conversation/ProfileChangeNotification';
 
-import { getDomain, isCallLink, isStickerPack } from '../../types/LinkPreview';
+import {
+  getSafeDomain,
+  isCallLink,
+  isStickerPack,
+} from '../../types/LinkPreview';
 import type {
   AciString,
   PniString,
@@ -62,11 +66,7 @@ import type {
   AttachmentForUIType,
   AttachmentType,
 } from '../../types/Attachment';
-import {
-  isVoiceMessage,
-  canBeDownloaded,
-  defaultBlurHash,
-} from '../../types/Attachment';
+import { isVoiceMessage, defaultBlurHash } from '../../types/Attachment';
 import { type DefaultConversationColorType } from '../../types/Colors';
 import { ReadStatus } from '../../messages/MessageReadStatus';
 
@@ -144,16 +144,14 @@ import {
 } from '../../util/getTitle';
 import { getMessageSentTimestamp } from '../../util/getMessageSentTimestamp';
 import type { CallHistorySelectorType } from './callHistory';
-import { CallMode } from '../../types/Calling';
-import { CallDirection } from '../../types/CallDisposition';
+import { CallMode, CallDirection } from '../../types/CallDisposition';
 import { getCallIdFromEra } from '../../util/callDisposition';
 import { LONG_MESSAGE } from '../../types/MIME';
 import type { MessageRequestResponseNotificationData } from '../../components/conversation/MessageRequestResponseNotification';
-import { formatFileSize } from '../../util/formatFileSize';
 
 export { isIncoming, isOutgoing, isStory };
 
-const linkify = LinkifyIt();
+const linkify = new LinkifyIt();
 
 type FormattedContact = Partial<ConversationType> &
   Pick<
@@ -201,7 +199,7 @@ export function hasErrors(
 }
 
 export function getSource(
-  message: Pick<MessageAttributesType, 'type' | 'source'>,
+  message: Pick<ReadonlyMessageAttributesType, 'type' | 'source'>,
   ourNumber: string | undefined
 ): string | undefined {
   if (isIncoming(message)) {
@@ -233,7 +231,7 @@ export function getSourceDevice(
 }
 
 export function getSourceServiceId(
-  message: Pick<MessageAttributesType, 'type' | 'sourceServiceId'>,
+  message: Pick<ReadonlyMessageAttributesType, 'type' | 'sourceServiceId'>,
   ourAci: AciString | undefined
 ): ServiceIdString | undefined {
   if (isIncoming(message)) {
@@ -323,7 +321,6 @@ export const getAttachmentsForMessage = ({
   }
   return (
     attachments
-      .filter(attachment => !attachment.error || canBeDownloaded(attachment))
       // Long message attachments are removed from message.attachments quickly,
       // but in case they are still around, let's make sure not to show them
       .filter(attachment => attachment.contentType !== LONG_MESSAGE)
@@ -391,7 +388,7 @@ const getPreviewsForMessage = ({
     ...preview,
     isStickerPack: isStickerPack(preview.url),
     isCallLink: isCallLink(preview.url),
-    domain: getDomain(preview.url),
+    domain: getSafeDomain(preview.url),
     image: preview.image ? getPropsForAttachment(preview.image) : undefined,
   }));
 };
@@ -578,6 +575,7 @@ export const getPropsForQuote = (
 
 export type GetPropsForMessageOptions = Pick<
   GetPropsForBubbleOptions,
+  | 'activeCall'
   | 'conversationSelector'
   | 'ourConversationId'
   | 'ourAci'
@@ -677,6 +675,7 @@ export const getPropsForMessage = (
   const payment = getPayment(message);
 
   const {
+    activeCall,
     accountSelector,
     conversationSelector,
     ourConversationId,
@@ -700,6 +699,7 @@ export const getPropsForMessage = (
   const { sticker } = message;
 
   const isMessageTapToView = isTapToView(message);
+  const activeCallConversationId = activeCall?.conversationId;
 
   const isTargeted = message.id === targetedMessageId;
   const isSelected = selectedMessageIds?.includes(message.id) ?? false;
@@ -727,6 +727,7 @@ export const getPropsForMessage = (
     attachmentDroppedDueToSize,
     author,
     bodyRanges,
+    activeCallConversationId,
     previews,
     quote,
     reactions,
@@ -799,18 +800,18 @@ export const getMessagePropsSelector = createSelector(
   getSelectedMessageIds,
   getDefaultConversationColor,
   (
-      conversationSelector,
-      ourConversationId,
-      ourAci,
-      ourPni,
-      ourNumber,
-      regionCode,
-      accountSelector,
-      cachedConversationMemberColorsSelector,
-      targetedMessage,
-      selectedMessageIds,
-      defaultConversationColor
-    ) =>
+    conversationSelector,
+    ourConversationId,
+    ourAci,
+    ourPni,
+    ourNumber,
+    regionCode,
+    accountSelector,
+    cachedConversationMemberColorsSelector,
+    targetedMessage,
+    selectedMessageIds,
+    defaultConversationColor
+  ) =>
     (message: MessageWithUIFieldsType) => {
       const contactNameColors = cachedConversationMemberColorsSelector(
         message.conversationId
@@ -1022,7 +1023,8 @@ export function isNormalBubble(message: MessageWithUIFieldsType): boolean {
     !isVerifiedChange(message) &&
     !isChangeNumberNotification(message) &&
     !isJoinedSignalNotification(message) &&
-    !isDeliveryIssue(message)
+    !isDeliveryIssue(message) &&
+    !isMessageRequestResponse(message)
   );
 }
 
@@ -1448,10 +1450,10 @@ export function getPropsForCallHistory(
   const isSelectMode = selectedMessageIds != null;
 
   let callCreator: ConversationType | null = null;
-  if (callHistory.ringerId) {
-    callCreator = conversationSelector(callHistory.ringerId);
-  } else if (callHistory.direction === CallDirection.Outgoing) {
+  if (callHistory.direction === CallDirection.Outgoing) {
     callCreator = conversationSelector(ourConversationId);
+  } else if (callHistory.ringerId) {
+    callCreator = conversationSelector(callHistory.ringerId);
   }
 
   if (callHistory.mode === CallMode.Direct) {
@@ -1523,13 +1525,13 @@ function getPropsForProfileChange(
 // Message Request Response Event
 
 export function isMessageRequestResponse(
-  message: MessageAttributesType
+  message: ReadonlyMessageAttributesType
 ): boolean {
   return message.type === 'message-request-response-event';
 }
 
 function getPropsForMessageRequestResponse(
-  message: MessageAttributesType
+  message: ReadonlyMessageAttributesType
 ): MessageRequestResponseNotificationData {
   const { messageRequestResponseEvent } = message;
   if (!messageRequestResponseEvent) {
@@ -1805,7 +1807,7 @@ export function getPropsForEmbeddedContact(
   message: MessageWithUIFieldsType,
   regionCode: string | undefined,
   accountSelector: (identifier?: string) => ServiceIdString | undefined
-): EmbeddedContactType | undefined {
+): ReadonlyDeep<EmbeddedContactType> | undefined {
   const contacts = message.contact;
   if (!contacts || !contacts.length) {
     return undefined;
@@ -1829,12 +1831,11 @@ export function getPropsForAttachment(
     return undefined;
   }
 
-  const { path, pending, size, screenshot, thumbnail, thumbnailFromBackup } =
+  const { path, pending, screenshot, thumbnail, thumbnailFromBackup } =
     attachment;
 
   return {
     ...attachment,
-    fileSize: size ? formatFileSize(size) : undefined,
     isVoiceMessage: isVoiceMessage(attachment),
     pending,
     url: path ? getLocalAttachmentUrl(attachment) : undefined,
@@ -1888,6 +1889,7 @@ function canReplyOrReact(
     | 'deletedForEveryone'
     | 'payment'
     | 'sendStateByConversationId'
+    | 'sms'
     | 'type'
   >,
   ourConversationId: string | undefined,
@@ -1926,6 +1928,10 @@ function canReplyOrReact(
     return false;
   }
 
+  if (message.sms) {
+    return false;
+  }
+
   if (isOutgoing(message)) {
     return (
       isMessageJustForMe(sendStateByConversationId ?? {}, ourConversationId) ||
@@ -1960,6 +1966,7 @@ export function canReply(
     | 'conversationId'
     | 'deletedForEveryone'
     | 'sendStateByConversationId'
+    | 'sms'
     | 'type'
   >,
   ourConversationId: string | undefined,
@@ -1981,6 +1988,7 @@ export function canReact(
     | 'conversationId'
     | 'deletedForEveryone'
     | 'sendStateByConversationId'
+    | 'sms'
     | 'type'
   >,
   ourConversationId: string | undefined,
@@ -1999,11 +2007,17 @@ export function canCopy(
 export function canDeleteForEveryone(
   message: Pick<
     MessageWithUIFieldsType,
-    'type' | 'deletedForEveryone' | 'sent_at' | 'sendStateByConversationId'
+    | 'type'
+    | 'deletedForEveryone'
+    | 'sent_at'
+    | 'sendStateByConversationId'
+    | 'sms'
   >,
   isMe: boolean
 ): boolean {
   return (
+    // Is this an SMS restored from backup?
+    !message.sms &&
     // Is this a message I sent?
     isOutgoing(message) &&
     // Has the message already been deleted?
@@ -2047,15 +2061,19 @@ export function canDownload(
   message: MessageWithUIFieldsType,
   conversationSelector: GetConversationByIdType
 ): boolean {
-  if (isOutgoing(message)) {
-    return true;
-  }
-
   const conversation = getConversation(message, conversationSelector);
   const isAccepted = Boolean(
     conversation && conversation.acceptedMessageRequest
   );
-  if (!isAccepted) {
+  if (isIncoming(message) && !isAccepted) {
+    return false;
+  }
+
+  if (message.sticker) {
+    return false;
+  }
+
+  if (isTapToView(message)) {
     return false;
   }
 
@@ -2065,7 +2083,7 @@ export function canDownload(
     return attachments.every(attachment => Boolean(attachment.path));
   }
 
-  return true;
+  return false;
 }
 
 export function getLastChallengeError(
@@ -2091,7 +2109,7 @@ export function getLastChallengeError(
 
 const getTargetedMessageForDetails = (
   state: StateType
-): MessageAttributesType | undefined =>
+): ReadonlyMessageAttributesType | undefined =>
   state.conversations.targetedMessageForDetails;
 
 const OUTGOING_KEY_ERROR = 'OutgoingIdentityKeyError';

@@ -6,6 +6,7 @@
 import { assert } from 'chai';
 import { v4 as generateUuid } from 'uuid';
 import sinon from 'sinon';
+import { DataWriter } from '../sql/Client';
 import { ConversationModel } from '../models/conversations';
 import type { ConversationAttributesType } from '../model-types.d';
 import type { WebAPIType } from '../textsecure/WebAPI';
@@ -138,6 +139,7 @@ describe('updateConversationsWithUuidLookup', () => {
       sentMessageCount: 0,
       type: 'private' as const,
       version: 0,
+      expireTimerVersion: 2,
       ...attributes,
     });
   }
@@ -151,7 +153,7 @@ describe('updateConversationsWithUuidLookup', () => {
   beforeEach(() => {
     sinonSandbox = sinon.createSandbox();
 
-    sinonSandbox.stub(window.Signal.Data, 'updateConversation');
+    sinonSandbox.stub(DataWriter, 'updateConversation');
 
     fakeCdsLookup = sinonSandbox.stub().resolves({
       entries: new Map(),

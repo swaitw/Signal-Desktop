@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { assert } from 'chai';
-import type { Database } from '@signalapp/better-sqlite3';
-import SQL from '@signalapp/better-sqlite3';
 import { v4 as generateGuid } from 'uuid';
 
-import { getMostRecentAddressableNondisappearingMessagesSync } from '../../sql/Server';
-import { insertData, updateToVersion } from './helpers';
+import type { WritableDB, ReadableDB, MessageType } from '../../sql/Interface';
+import { sql, jsonToObject } from '../../sql/util';
+import { createDB, insertData, updateToVersion } from './helpers';
 
 import type { MessageAttributesType } from '../../model-types';
 import { DurationInSeconds } from '../../util/durations/duration-in-seconds';
@@ -27,10 +26,32 @@ function generateMessage(json: MessageAttributesType) {
   };
 }
 
+// Snapshot before: 1270
+export function getMostRecentAddressableNondisappearingMessages(
+  db: ReadableDB,
+  conversationId: string,
+  limit = 5
+): Array<MessageType> {
+  const [query, parameters] = sql`
+    SELECT json FROM messages
+    INDEXED BY messages_by_date_addressable_nondisappearing
+    WHERE
+      expireTimer IS NULL AND
+      conversationId IS ${conversationId} AND
+      isAddressableMessage = 1
+    ORDER BY received_at DESC, sent_at DESC
+    LIMIT ${limit};
+  `;
+
+  const rows = db.prepare(query).all(parameters);
+
+  return rows.map(row => jsonToObject(row.json));
+}
+
 describe('SQL/updateToSchemaVersion1080', () => {
-  let db: Database;
+  let db: WritableDB;
   beforeEach(() => {
-    db = new SQL(':memory:');
+    db = createDB();
     updateToVersion(db, 1080);
   });
 
@@ -111,7 +132,7 @@ describe('SQL/updateToSchemaVersion1080', () => {
         }),
       ]);
 
-      const messages = getMostRecentAddressableNondisappearingMessagesSync(
+      const messages = getMostRecentAddressableNondisappearingMessages(
         db,
         conversationId
       );

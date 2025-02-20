@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { noop } from 'lodash';
-import type { Database } from '@signalapp/better-sqlite3';
+import SQL from '@signalapp/better-sqlite3';
 
+import type { ReadableDB, WritableDB } from '../../sql/Interface';
 import { SCHEMA_VERSIONS } from '../../sql/migrations';
 import { consoleLogger } from '../../util/consoleLogger';
 
-export function updateToVersion(db: Database, version: number): void {
+export function createDB(): WritableDB {
+  return new SQL(':memory:') as WritableDB;
+}
+
+export function updateToVersion(db: WritableDB, version: number): void {
   const startVersion = db.pragma('user_version', { simple: true });
 
   const silentLogger = {
@@ -29,10 +34,14 @@ export function updateToVersion(db: Database, version: number): void {
 }
 
 type TableRows = ReadonlyArray<
-  Record<string, string | number | null | Record<string, unknown>>
+  Record<string, string | number | Buffer | null | Record<string, unknown>>
 >;
 
-export function insertData(db: Database, table: string, rows: TableRows): void {
+export function insertData(
+  db: WritableDB,
+  table: string,
+  rows: TableRows
+): void {
   for (const row of rows) {
     db.prepare(
       `
@@ -43,6 +52,9 @@ export function insertData(db: Database, table: string, rows: TableRows): void {
     `
     ).run(
       Object.values(row).map(v => {
+        if (Buffer.isBuffer(v)) {
+          return v;
+        }
         if (v != null && typeof v === 'object') {
           return JSON.stringify(v);
         }
@@ -52,11 +64,11 @@ export function insertData(db: Database, table: string, rows: TableRows): void {
   }
 }
 
-export function getTableData(db: Database, table: string): TableRows {
+export function getTableData(db: ReadableDB, table: string): TableRows {
   return db
     .prepare(`SELECT * FROM ${table}`)
     .all()
-    .map((row: Record<string, string | number | null>) => {
+    .map((row: Record<string, string | number | Buffer | null>) => {
       const result: Record<
         string,
         string | number | null | Record<string, unknown>
@@ -65,8 +77,12 @@ export function getTableData(db: Database, table: string): TableRows {
         if (value == null) {
           continue;
         }
+        if (Buffer.isBuffer(value)) {
+          result[key] = value.toString('hex');
+          continue;
+        }
         try {
-          if (typeof value !== 'string') {
+          if (typeof value !== 'string' || !value.trim().startsWith('{')) {
             throw new Error('skip');
           }
           result[key] = JSON.parse(value) as Record<string, unknown>;

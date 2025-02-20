@@ -98,14 +98,38 @@ describe('signalRoutes', () => {
     check(`sgnl://joingroup#${fooNoSlash}`, result);
   });
 
-  it('linkDevice', () => {
+  it('linkDevice without capabilities', () => {
     const result: ParsedSignalRoute = {
       key: 'linkDevice',
-      args: { uuid: foo, pubKey: foo },
+      args: { uuid: foo, pubKey: foo, capabilities: [] },
     };
     const check = createCheck({ hasWebUrl: false });
     check(`sgnl://linkdevice/?uuid=${foo}&pub_key=${foo}`, result);
     check(`sgnl://linkdevice?uuid=${foo}&pub_key=${foo}`, result);
+  });
+
+  it('linkDevice with one capability', () => {
+    const result: ParsedSignalRoute = {
+      key: 'linkDevice',
+      args: { uuid: foo, pubKey: foo, capabilities: ['backup'] },
+    };
+    const check = createCheck({ hasWebUrl: false });
+    check(
+      `sgnl://linkdevice/?uuid=${foo}&pub_key=${foo}&capabilities=backup`,
+      result
+    );
+  });
+
+  it('linkDevice with multiple capabilities', () => {
+    const result: ParsedSignalRoute = {
+      key: 'linkDevice',
+      args: { uuid: foo, pubKey: foo, capabilities: ['a', 'b'] },
+    };
+    const check = createCheck({ hasWebUrl: false });
+    check(
+      `sgnl://linkdevice/?uuid=${foo}&pub_key=${foo}&capabilities=a%2Cb`,
+      result
+    );
   });
 
   it('captcha', () => {
@@ -162,37 +186,23 @@ describe('signalRoutes', () => {
 
   it('showConversation', () => {
     const check = createCheck({ isRoute: true, hasWebUrl: false });
-    const args1 = `conversationId=${foo}`;
-    const args2 = `conversationId=${foo}&messageId=${foo}`;
-    const args3 = `conversationId=${foo}&messageId=${foo}&storyId=${foo}`;
+    const args1 = `token=${foo}`;
     const result1: ParsedSignalRoute = {
       key: 'showConversation',
-      args: { conversationId: foo, messageId: null, storyId: null },
-    };
-    const result2: ParsedSignalRoute = {
-      key: 'showConversation',
-      args: { conversationId: foo, messageId: foo, storyId: null },
-    };
-    const result3: ParsedSignalRoute = {
-      key: 'showConversation',
-      args: { conversationId: foo, messageId: foo, storyId: foo },
+      args: { token: foo },
     };
     check(`sgnl://show-conversation/?${args1}`, result1);
     check(`sgnl://show-conversation?${args1}`, result1);
-    check(`sgnl://show-conversation/?${args2}`, result2);
-    check(`sgnl://show-conversation?${args2}`, result2);
-    check(`sgnl://show-conversation/?${args3}`, result3);
-    check(`sgnl://show-conversation?${args3}`, result3);
   });
 
   it('startCallLobby', () => {
     const result: ParsedSignalRoute = {
       key: 'startCallLobby',
-      args: { conversationId: foo },
+      args: { token: foo },
     };
     const check = createCheck({ isRoute: true, hasWebUrl: false });
-    check(`sgnl://start-call-lobby/?conversationId=${foo}`, result);
-    check(`sgnl://start-call-lobby?conversationId=${foo}`, result);
+    check(`sgnl://start-call-lobby/?token=${foo}`, result);
+    check(`sgnl://start-call-lobby?token=${foo}`, result);
   });
 
   it('showWindow', () => {
@@ -205,13 +215,13 @@ describe('signalRoutes', () => {
     check('sgnl://show-window', result);
   });
 
-  it('setIsPresenting', () => {
+  it('cancelPresenting', () => {
     const result: ParsedSignalRoute = {
-      key: 'setIsPresenting',
+      key: 'cancelPresenting',
       args: {},
     };
     const check = createCheck({ isRoute: true, hasWebUrl: false });
-    check('sgnl://set-is-presenting/', result);
-    check('sgnl://set-is-presenting', result);
+    check('sgnl://cancel-presenting/', result);
+    check('sgnl://cancel-presenting', result);
   });
 });

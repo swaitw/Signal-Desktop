@@ -20,6 +20,8 @@ import { ButtonVariant } from './Button';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { SignalConnectionsModal } from './SignalConnectionsModal';
 import { WhatsNewModal } from './WhatsNewModal';
+import type { StartCallData } from './ConfirmLeaveCallModal';
+import type { AttachmentNotAvailableModalType } from './AttachmentNotAvailableModal';
 
 // NOTE: All types should be required for this component so that the smart
 // component gives you type errors when adding/removing props.
@@ -29,12 +31,21 @@ export type PropsType = {
   // AddUserToAnotherGroupModal
   addUserToAnotherGroupModalContactId: string | undefined;
   renderAddUserToAnotherGroup: () => JSX.Element;
+  // AttachmentNotAvailableModal
+  attachmentNotAvailableModalType: AttachmentNotAvailableModalType | undefined;
+  renderAttachmentNotAvailableModal: () => JSX.Element;
   // CallLinkAddNameModal
   callLinkAddNameModalRoomId: string | null;
   renderCallLinkAddNameModal: () => JSX.Element;
   // CallLinkEditModal
   callLinkEditModalRoomId: string | null;
   renderCallLinkEditModal: () => JSX.Element;
+  // CallLinkPendingParticipantModal
+  callLinkPendingParticipantContactId: string | undefined;
+  renderCallLinkPendingParticipantModal: () => JSX.Element;
+  // ConfirmLeaveCallModal
+  confirmLeaveCallModalState: StartCallData | null;
+  renderConfirmLeaveCallModal: () => JSX.Element;
   // ContactModal
   contactModalState: ContactModalStateType | undefined;
   renderContactModal: () => JSX.Element;
@@ -46,12 +57,16 @@ export type PropsType = {
   renderEditNicknameAndNoteModal: () => JSX.Element;
   // ErrorModal
   errorModalProps:
-    | { buttonVariant?: ButtonVariant; description?: string; title?: string }
+    | {
+        buttonVariant?: ButtonVariant;
+        description?: string;
+        title?: string | null;
+      }
     | undefined;
   renderErrorModal: (opts: {
     buttonVariant?: ButtonVariant;
     description?: string;
-    title?: string;
+    title?: string | null;
   }) => JSX.Element;
   // DeleteMessageModal
   deleteMessagesProps: DeleteMessagesPropsType | undefined;
@@ -105,6 +120,9 @@ export type PropsType = {
 
 export function GlobalModalContainer({
   i18n,
+  // AttachmentNotAvailableModal
+  attachmentNotAvailableModalType,
+  renderAttachmentNotAvailableModal,
   // AddUserToAnotherGroupModal
   addUserToAnotherGroupModalContactId,
   renderAddUserToAnotherGroup,
@@ -114,6 +132,12 @@ export function GlobalModalContainer({
   // CallLinkEditModal
   callLinkEditModalRoomId,
   renderCallLinkEditModal,
+  // CallLinkPendingParticipantModal
+  callLinkPendingParticipantContactId,
+  renderCallLinkPendingParticipantModal,
+  // ConfirmLeaveCallModal
+  confirmLeaveCallModalState,
+  renderConfirmLeaveCallModal,
   // ContactModal
   contactModalState,
   renderContactModal,
@@ -196,6 +220,10 @@ export function GlobalModalContainer({
 
   // The Rest
 
+  if (confirmLeaveCallModalState) {
+    return renderConfirmLeaveCallModal();
+  }
+
   if (addUserToAnotherGroupModalContactId) {
     return renderAddUserToAnotherGroup();
   }
@@ -257,6 +285,12 @@ export function GlobalModalContainer({
     return renderContactModal();
   }
 
+  // This needs to be after the about contact modal because the pending participant modal
+  // opens the about contact modal
+  if (callLinkPendingParticipantContactId) {
+    return renderCallLinkPendingParticipantModal();
+  }
+
   if (isStoriesSettingsVisible) {
     return renderStoriesSettings();
   }
@@ -298,6 +332,10 @@ export function GlobalModalContainer({
         {content}
       </ConfirmationDialog>
     );
+  }
+
+  if (attachmentNotAvailableModalType) {
+    return renderAttachmentNotAvailableModal();
   }
 
   return null;

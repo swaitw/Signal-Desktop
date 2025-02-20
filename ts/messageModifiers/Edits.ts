@@ -4,6 +4,7 @@
 import type { MessageAttributesType } from '../model-types.d';
 import * as Errors from '../types/errors';
 import * as log from '../logging/log';
+import { DataReader } from '../sql/Client';
 import { drop } from '../util/drop';
 import { getAuthorId } from '../messages/helpers';
 import { handleEditMessage } from '../util/handleEditMessage';
@@ -12,6 +13,7 @@ import {
   isAttachmentDownloadQueueEmpty,
   registerQueueEmptyCallback,
 } from '../util/attachmentDownloadQueue';
+import { MessageModel } from '../models/messages';
 
 export type EditAttributesType = {
   conversationId: string;
@@ -117,7 +119,7 @@ export async function onEdit(edit: EditAttributesType): Promise<void> {
       targetConversation.queueJob('Edits.onEdit', async () => {
         log.info(`${logId}: Handling edit`);
 
-        const messages = await window.Signal.Data.getMessagesBySentAt(
+        const messages = await DataReader.getMessagesBySentAt(
           edit.targetSentTimestamp
         );
 
@@ -133,10 +135,8 @@ export async function onEdit(edit: EditAttributesType): Promise<void> {
           return;
         }
 
-        const message = window.MessageCache.__DEPRECATED$register(
-          targetMessage.id,
-          targetMessage,
-          'Edits.onEdit'
+        const message = window.MessageCache.register(
+          new MessageModel(targetMessage)
         );
 
         await handleEditMessage(message.attributes, edit);

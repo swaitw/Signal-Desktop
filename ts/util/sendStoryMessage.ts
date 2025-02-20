@@ -12,7 +12,7 @@ import type {
 import type { StoryDistributionIdString } from '../types/StoryDistributionId';
 import type { ServiceIdString } from '../types/ServiceId';
 import * as log from '../logging/log';
-import dataInterface from '../sql/Client';
+import { DataReader, DataWriter } from '../sql/Client';
 import { MY_STORY_ID, StorySendMode } from '../types/Stories';
 import { getStoriesBlocked } from './stories';
 import { ReadStatus } from '../messages/MessageReadStatus';
@@ -31,6 +31,7 @@ import { collect } from './iterables';
 import { DurationInSeconds } from './durations';
 import { sanitizeLinkPreview } from '../services/LinkPreview';
 import type { DraftBodyRanges } from '../types/BodyRange';
+import { MessageModel } from '../models/messages';
 
 export async function sendStoryMessage(
   listIds: Array<string>,
@@ -54,9 +55,7 @@ export async function sendStoryMessage(
 
   const distributionLists = (
     await Promise.all(
-      listIds.map(listId =>
-        dataInterface.getStoryDistributionWithMembers(listId)
-      )
+      listIds.map(listId => DataReader.getStoryDistributionWithMembers(listId))
     )
   ).filter(isNotNil);
 
@@ -242,7 +241,7 @@ export async function sendStoryMessage(
   for (const group of groupsToUpdate) {
     group.set('storySendMode', StorySendMode.Always);
   }
-  void window.Signal.Data.updateConversations(
+  void DataWriter.updateConversations(
     groupsToUpdate.map(group => group.attributes)
   );
   for (const group of groupsToUpdate) {
@@ -309,22 +308,14 @@ export async function sendStoryMessage(
   // * Save the message model
   // * Add the message to the conversation
   await Promise.all(
-    distributionListMessages.map(messageAttributes => {
-      const model = new window.Whisper.Message(messageAttributes);
-      const message = window.MessageCache.__DEPRECATED$register(
-        model.id,
-        model,
-        'sendStoryMessage'
-      );
+    distributionListMessages.map(message => {
+      window.MessageCache.register(new MessageModel(message));
 
-      void ourConversation.addSingleMessage(model, { isJustSent: true });
+      void ourConversation.addSingleMessage(message, { isJustSent: true });
 
-      log.info(
-        `stories.sendStoryMessage: saving message ${messageAttributes.timestamp}`
-      );
-      return dataInterface.saveMessage(message.attributes, {
+      log.info(`stories.sendStoryMessage: saving message ${message.timestamp}`);
+      return window.MessageCache.saveMessage(message, {
         forceSave: true,
-        ourAci: window.textsecure.storage.user.getCheckedAci(),
       });
     })
   );
@@ -364,23 +355,19 @@ export async function sendStoryMessage(
           timestamp: messageAttributes.timestamp,
         },
         async jobToInsert => {
-          const model = new window.Whisper.Message(messageAttributes);
-          const message = window.MessageCache.__DEPRECATED$register(
-            model.id,
-            model,
-            'sendStoryMessage'
-          );
-
-          const conversation = message.getConversation();
-          void conversation?.addSingleMessage(model, { isJustSent: true });
+          window.MessageCache.register(new MessageModel(messageAttributes));
+          const conversation =
+            window.ConversationController.get(conversationId);
+          void conversation?.addSingleMessage(messageAttributes, {
+            isJustSent: true,
+          });
 
           log.info(
             `stories.sendStoryMessage: saving message ${messageAttributes.timestamp}`
           );
-          await dataInterface.saveMessage(message.attributes, {
+          await window.MessageCache.saveMessage(messageAttributes, {
             forceSave: true,
             jobToInsert,
-            ourAci: window.textsecure.storage.user.getCheckedAci(),
           });
         }
       );

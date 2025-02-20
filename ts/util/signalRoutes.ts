@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { strictAssert } from './assert';
 import * as log from '../logging/log';
 import * as Errors from '../types/errors';
+import { parsePartial, parseUnknown, safeParseUnknown } from './schemas';
 
 function toUrl(input: URL | string): URL | null {
   if (input instanceof URL) {
@@ -40,7 +41,7 @@ const SignalRouteHostnames = [
  * Type to help maintain {@link SignalRouteHostnames}, real hostnames should go there.
  */
 type AllHostnamePatterns =
-  | typeof SignalRouteHostnames[number]
+  | (typeof SignalRouteHostnames)[number]
   | 'verify'
   | 'linkdevice'
   | 'addstickers'
@@ -49,7 +50,7 @@ type AllHostnamePatterns =
   | 'show-conversation'
   | 'start-call-lobby'
   | 'show-window'
-  | 'set-is-presenting'
+  | 'cancel-presenting'
   | ':captchaId(.+)'
   | '';
 
@@ -66,7 +67,7 @@ type PatternInput = {
 type URLMatcher = (input: URL) => URLPatternResult | null;
 
 function _pattern(
-  protocol: typeof SignalRouteProtocols[number],
+  protocol: (typeof SignalRouteProtocols)[number],
   hostname: AllHostnamePatterns,
   pathname: PatternString,
   init: PatternInput
@@ -164,7 +165,10 @@ function _route<Key extends string, Args extends object>(
             );
             return null;
           }
-          const parseResult = config.schema.safeParse(rawArgs);
+          const parseResult = safeParseUnknown(
+            config.schema,
+            rawArgs as unknown
+          );
           if (parseResult.success) {
             const args = parseResult.data;
             return {
@@ -183,13 +187,13 @@ function _route<Key extends string, Args extends object>(
     },
     toWebUrl(args) {
       if (config.toWebUrl) {
-        return config.toWebUrl(config.schema.parse(args));
+        return config.toWebUrl(parseUnknown(config.schema, args as unknown));
       }
       throw new Error('Route does not support web URLs');
     },
     toAppUrl(args) {
       if (config.toAppUrl) {
-        return config.toAppUrl(config.schema.parse(args));
+        return config.toAppUrl(parseUnknown(config.schema, args as unknown));
       }
       throw new Error('Route does not support app URLs');
     },
@@ -197,7 +201,6 @@ function _route<Key extends string, Args extends object>(
 }
 
 const paramSchema = z.string().min(1);
-const optionalParamSchema = paramSchema.nullish().default(null);
 
 /**
  * signal.me by phone number
@@ -219,7 +222,7 @@ export const contactByPhoneNumberRoute = _route('contactByPhoneNumber', {
   }),
   parse(result) {
     return {
-      phoneNumber: paramSchema.parse(result.hash.groups.phoneNumber),
+      phoneNumber: parsePartial(paramSchema, result.hash.groups.phoneNumber),
     };
   },
   toWebUrl(args) {
@@ -309,8 +312,9 @@ export const groupInvitesRoute = _route('groupInvites', {
  * linkDeviceRoute.toAppUrl({
  *   uuid: "123",
  *   pubKey: "abc",
+ *   capabilities: "backuo"
  * })
- * // URL { "sgnl://linkdevice?uuid=123&pub_key=abc" }
+ * // URL { "sgnl://linkdevice?uuid=123&pub_key=abc&capabilities=backup" }
  * ```
  */
 export const linkDeviceRoute = _route('linkDevice', {
@@ -318,18 +322,21 @@ export const linkDeviceRoute = _route('linkDevice', {
   schema: z.object({
     uuid: paramSchema, // base64url?
     pubKey: paramSchema, // percent-encoded base64 (with padding) of PublicKey with type byte included
+    capabilities: paramSchema.array(), // comma-separated list of capabilities
   }),
   parse(result) {
     const params = new URLSearchParams(result.search.groups.params);
     return {
       uuid: params.get('uuid'),
       pubKey: params.get('pub_key'),
+      capabilities: params.get('capabilities')?.split(',') ?? [],
     };
   },
   toAppUrl(args) {
     const params = new URLSearchParams({
       uuid: args.uuid,
       pub_key: args.pubKey,
+      capabilities: args.capabilities.join(','),
     });
     return new URL(`sgnl://linkdevice?${params.toString()}`);
   },
@@ -386,11 +393,11 @@ export const linkCallRoute = _route('linkCall', {
   },
   toWebUrl(args) {
     const params = new URLSearchParams({ key: args.key });
-    return new URL(`https://signal.link/call#${params.toString()}`);
+    return new URL(`https://signal.link/call/#${params.toString()}`);
   },
   toAppUrl(args) {
     const params = new URLSearchParams({ key: args.key });
-    return new URL(`sgnl://signal.link/call#${params.toString()}`);
+    return new URL(`sgnl://signal.link/call/#${params.toString()}`);
   },
 });
 
@@ -444,11 +451,9 @@ export const artAddStickersRoute = _route('artAddStickers', {
  * @example
  * ```ts
  * showConversationRoute.toAppUrl({
- *   conversationId: "123",
- *   messageId: "abc",
- *   storyId: "def",
+ *   token: 'abc',
  * })
- * // URL { "sgnl://show-conversation?conversationId=123&messageId=abc&storyId=def" }
+ * // URL { "sgnl://show-conversation?token=abc" }
  * ```
  */
 export const showConversationRoute = _route('showConversation', {
@@ -456,28 +461,16 @@ export const showConversationRoute = _route('showConversation', {
     _pattern('sgnl:', 'show-conversation', '{/}?', { search: ':params' }),
   ],
   schema: z.object({
-    conversationId: paramSchema,
-    messageId: optionalParamSchema,
-    storyId: optionalParamSchema,
+    token: paramSchema,
   }),
   parse(result) {
     const params = new URLSearchParams(result.search.groups.params);
     return {
-      conversationId: params.get('conversationId'),
-      messageId: params.get('messageId'),
-      storyId: params.get('storyId'),
+      token: params.get('token'),
     };
   },
   toAppUrl(args) {
-    const params = new URLSearchParams({
-      conversationId: args.conversationId,
-    });
-    if (args.messageId != null) {
-      params.set('messageId', args.messageId);
-    }
-    if (args.storyId != null) {
-      params.set('storyId', args.storyId);
-    }
+    const params = new URLSearchParams({ token: args.token });
     return new URL(`sgnl://show-conversation?${params.toString()}`);
   },
 });
@@ -487,9 +480,9 @@ export const showConversationRoute = _route('showConversation', {
  * @example
  * ```ts
  * startCallLobbyRoute.toAppUrl({
- *   conversationId: "123",
+ *   token: "123",
  * })
- * // URL { "sgnl://start-call-lobby?conversationId=123" }
+ * // URL { "sgnl://start-call-lobby?token=123" }
  * ```
  */
 export const startCallLobbyRoute = _route('startCallLobby', {
@@ -497,18 +490,16 @@ export const startCallLobbyRoute = _route('startCallLobby', {
     _pattern('sgnl:', 'start-call-lobby', '{/}?', { search: ':params' }),
   ],
   schema: z.object({
-    conversationId: paramSchema,
+    token: paramSchema,
   }),
   parse(result) {
     const params = new URLSearchParams(result.search.groups.params);
     return {
-      conversationId: params.get('conversationId'),
+      token: params.get('token'),
     };
   },
   toAppUrl(args) {
-    const params = new URLSearchParams({
-      conversationId: args.conversationId,
-    });
+    const params = new URLSearchParams({ token: args.token });
     return new URL(`sgnl://start-call-lobby?${params.toString()}`);
   },
 });
@@ -535,18 +526,18 @@ export const showWindowRoute = _route('showWindow', {
  * Set is presenting
  * @example
  * ```ts
- * setIsPresentingRoute.toAppUrl({})
- * // URL { "sgnl://set-is-presenting" }
+ * cancelPresentingRoute.toAppUrl({})
+ * // URL { "sgnl://cancel-presenting" }
  * ```
  */
-export const setIsPresentingRoute = _route('setIsPresenting', {
-  patterns: [_pattern('sgnl:', 'set-is-presenting', '{/}?', {})],
+export const cancelPresentingRoute = _route('cancelPresenting', {
+  patterns: [_pattern('sgnl:', 'cancel-presenting', '{/}?', {})],
   schema: z.object({}),
   parse() {
     return {};
   },
   toAppUrl() {
-    return new URL('sgnl://set-is-presenting');
+    return new URL('sgnl://cancel-presenting');
   },
 });
 
@@ -565,7 +556,7 @@ const _allSignalRoutes = [
   showConversationRoute,
   startCallLobbyRoute,
   showWindowRoute,
-  setIsPresentingRoute,
+  cancelPresentingRoute,
 ] as const;
 
 strictAssert(
@@ -585,7 +576,7 @@ strictAssert(
  * ```
  */
 export type ParsedSignalRoute = NonNullable<
-  ReturnType<typeof _allSignalRoutes[number]['fromUrl']>
+  ReturnType<(typeof _allSignalRoutes)[number]['fromUrl']>
 >;
 
 /** @internal */

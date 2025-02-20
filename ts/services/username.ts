@@ -361,7 +361,7 @@ export async function resetLink(username: string): Promise<void> {
   await window.storage.remove('usernameLinkCorrupted');
 
   me.captureChange('usernameLink');
-  storageServiceUploadJob();
+  storageServiceUploadJob({ reason: 'resetLink' });
 }
 
 const USERNAME_LINK_ENTROPY_SIZE = 32;
@@ -395,9 +395,8 @@ export async function resolveUsernameByLink({
 
   strictAssert(window.textsecure.server, 'WebAPI must be available');
   try {
-    const { usernameLinkEncryptedValue } = await server.resolveUsernameLink(
-      serverId
-    );
+    const { usernameLinkEncryptedValue } =
+      await server.resolveUsernameLink(serverId);
 
     return usernames.decryptUsernameLink({
       entropy: Buffer.from(entropy),

@@ -1,7 +1,6 @@
 // Copyright 2019 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { get } from 'lodash';
 import React, { memo } from 'react';
 import { useSelector } from 'react-redux';
 import type { PropsType as DialogExpiredBuildPropsType } from '../../components/DialogExpiredBuild';
@@ -20,6 +19,7 @@ import { getCountryDataForLocale } from '../../util/getCountryData';
 import { lookupConversationWithoutServiceId } from '../../util/lookupConversationWithoutServiceId';
 import { missingCaseError } from '../../util/missingCaseError';
 import { isDone as isRegistrationDone } from '../../util/registration';
+import { drop } from '../../util/drop';
 import { useCallingActions } from '../ducks/calling';
 import { useConversationsActions } from '../ducks/conversations';
 import { ComposerStep, OneTimeModalState } from '../ducks/conversationsEnums';
@@ -57,6 +57,7 @@ import {
 import { getCrashReportCount } from '../selectors/crashReports';
 import { hasExpired } from '../selectors/expiration';
 import {
+  getBackupMediaDownloadProgress,
   getNavTabsCollapsed,
   getPreferredLeftPaneWidth,
   getUsernameCorrupted,
@@ -67,12 +68,15 @@ import {
   hasNetworkDialog as getHasNetworkDialog,
 } from '../selectors/network';
 import {
+  getFilterByUnread,
+  getHasSearchQuery,
+  getIsActivelySearching,
   getIsSearching,
+  getIsSearchingGlobally,
   getQuery,
   getSearchConversation,
   getSearchResults,
   getStartSearchCounter,
-  isSearching,
 } from '../selectors/search';
 import {
   isUpdateDownloaded as getIsUpdateDownloaded,
@@ -94,6 +98,12 @@ import { SmartToastManager } from './ToastManager';
 import type { PropsType as SmartUnsupportedOSDialogPropsType } from './UnsupportedOSDialog';
 import { SmartUnsupportedOSDialog } from './UnsupportedOSDialog';
 import { SmartUpdateDialog } from './UpdateDialog';
+import {
+  cancelBackupMediaDownload,
+  dismissBackupMediaDownloadBanner,
+  pauseBackupMediaDownload,
+  resumeBackupMediaDownload,
+} from '../../util/backupMediaDownload';
 
 function renderMessageSearchResult(id: string): JSX.Element {
   return <SmartMessageSearchResult id={id} />;
@@ -113,6 +123,7 @@ function renderUpdateDialog(
 ): JSX.Element {
   return <SmartUpdateDialog {...props} />;
 }
+
 function renderCaptchaDialog({ onSkip }: { onSkip(): void }): JSX.Element {
   return <SmartCaptchaDialog onSkip={onSkip} />;
 }
@@ -155,20 +166,17 @@ const getModeSpecificProps = (
         return {
           mode: LeftPaneMode.Archive,
           archivedConversations,
+          isSearchingGlobally: getIsSearchingGlobally(state),
           searchConversation,
           searchTerm,
           startSearchCounter: getStartSearchCounter(state),
           ...(searchConversation && searchTerm ? getSearchResults(state) : {}),
         };
       }
-      if (isSearching(state)) {
-        const primarySendsSms = Boolean(
-          get(state.items, ['primarySendsSms'], false)
-        );
-
+      if (getIsActivelySearching(state)) {
         return {
           mode: LeftPaneMode.Search,
-          primarySendsSms,
+          isSearchingGlobally: getIsSearchingGlobally(state),
           searchConversation: getSearchConversation(state),
           searchDisabled: state.network.challengeStatus !== 'idle',
           startSearchCounter: getStartSearchCounter(state),
@@ -178,10 +186,12 @@ const getModeSpecificProps = (
       return {
         mode: LeftPaneMode.Inbox,
         isAboutToSearch: getIsSearching(state),
+        isSearchingGlobally: getIsSearchingGlobally(state),
         searchConversation: getSearchConversation(state),
         searchDisabled: state.network.challengeStatus !== 'idle',
         searchTerm: getQuery(state),
         startSearchCounter: getStartSearchCounter(state),
+        filterByUnread: getFilterByUnread(state),
         ...getLeftPaneLists(state),
       };
     case ComposerStep.StartDirectConversation:
@@ -252,6 +262,12 @@ const getModeSpecificProps = (
   }
 };
 
+function preloadConversation(conversationId: string): void {
+  drop(
+    window.ConversationController.get(conversationId)?.preloadNewestMessages()
+  );
+}
+
 export const SmartLeftPane = memo(function SmartLeftPane({
   hasFailedStorySends,
   hasPendingUpdate,
@@ -263,7 +279,7 @@ export const SmartLeftPane = memo(function SmartLeftPane({
   const getPreferredBadge = useSelector(getPreferredBadgeSelector);
   const hasAppExpired = useSelector(hasExpired);
   const hasNetworkDialog = useSelector(getHasNetworkDialog);
-  const hasSearchQuery = useSelector(isSearching);
+  const hasSearchQuery = useSelector(getHasSearchQuery);
   const hasUnsupportedOS = useSelector(isOSUnsupported);
   const hasUpdateDialog = useSelector(isUpdateDialogVisible);
   const i18n = useSelector(getIntl);
@@ -278,7 +294,9 @@ export const SmartLeftPane = memo(function SmartLeftPane({
   const theme = useSelector(getTheme);
   const usernameCorrupted = useSelector(getUsernameCorrupted);
   const usernameLinkCorrupted = useSelector(getUsernameLinkCorrupted);
-
+  const backupMediaDownloadProgress = useSelector(
+    getBackupMediaDownloadProgress
+  );
   const {
     blockConversation,
     clearGroupCreationError,
@@ -308,10 +326,13 @@ export const SmartLeftPane = memo(function SmartLeftPane({
   } = useConversationsActions();
   const {
     clearConversationSearch,
-    clearSearch,
+    clearSearchQuery,
+    endConversationSearch,
+    endSearch,
     searchInConversation,
     startSearch,
     updateSearchTerm,
+    updateFilterByUnread,
   } = useSearchActions();
   const {
     onOutgoingAudioCallInConversation,
@@ -347,11 +368,13 @@ export const SmartLeftPane = memo(function SmartLeftPane({
 
   return (
     <LeftPane
+      backupMediaDownloadProgress={backupMediaDownloadProgress}
       blockConversation={blockConversation}
+      cancelBackupMediaDownload={cancelBackupMediaDownload}
       challengeStatus={challengeStatus}
       clearConversationSearch={clearConversationSearch}
       clearGroupCreationError={clearGroupCreationError}
-      clearSearch={clearSearch}
+      clearSearchQuery={clearSearchQuery}
       closeMaximumGroupSizeModal={closeMaximumGroupSizeModal}
       closeRecommendedGroupSizeModal={closeRecommendedGroupSizeModal}
       composeDeleteAvatarFromDisk={composeDeleteAvatarFromDisk}
@@ -359,6 +382,9 @@ export const SmartLeftPane = memo(function SmartLeftPane({
       composeSaveAvatarToDisk={composeSaveAvatarToDisk}
       crashReportCount={crashReportCount}
       createGroup={createGroup}
+      dismissBackupMediaDownloadBanner={dismissBackupMediaDownloadBanner}
+      endConversationSearch={endConversationSearch}
+      endSearch={endSearch}
       getPreferredBadge={getPreferredBadge}
       hasExpiredDialog={hasExpiredDialog}
       hasFailedStorySends={hasFailedStorySends}
@@ -376,7 +402,9 @@ export const SmartLeftPane = memo(function SmartLeftPane({
       onOutgoingVideoCallInConversation={onOutgoingVideoCallInConversation}
       openUsernameReservationModal={openUsernameReservationModal}
       otherTabsUnreadStats={otherTabsUnreadStats}
+      pauseBackupMediaDownload={pauseBackupMediaDownload}
       preferredWidthFromStorage={preferredWidthFromStorage}
+      preloadConversation={preloadConversation}
       removeConversation={removeConversation}
       renderCaptchaDialog={renderCaptchaDialog}
       renderCrashReportDialog={renderCrashReportDialog}
@@ -387,6 +415,7 @@ export const SmartLeftPane = memo(function SmartLeftPane({
       renderToastManager={renderToastManager}
       renderUnsupportedOSDialog={renderUnsupportedOSDialog}
       renderUpdateDialog={renderUpdateDialog}
+      resumeBackupMediaDownload={resumeBackupMediaDownload}
       savePreferredLeftPaneWidth={savePreferredLeftPaneWidth}
       searchInConversation={searchInConversation}
       selectedConversationId={selectedConversationId}
@@ -417,6 +446,7 @@ export const SmartLeftPane = memo(function SmartLeftPane({
       updateSearchTerm={updateSearchTerm}
       usernameCorrupted={usernameCorrupted}
       usernameLinkCorrupted={usernameLinkCorrupted}
+      updateFilterByUnread={updateFilterByUnread}
     />
   );
 });

@@ -16,6 +16,7 @@ import type { AnyToast } from '../types/Toast';
 import { ToastType } from '../types/Toast';
 import type { AnyActionableMegaphone } from '../types/Megaphone';
 import { MegaphoneType } from '../types/Megaphone';
+import { AttachmentNotAvailableModalType } from './AttachmentNotAvailableModal';
 
 export type PropsType = {
   hideToast: () => unknown;
@@ -23,7 +24,13 @@ export type PropsType = {
   openFileInFolder: (target: string) => unknown;
   OS: string;
   onShowDebugLog: () => unknown;
-  onUndoArchive: (conversaetionId: string) => unknown;
+  onUndoArchive: (
+    conversationId: string,
+    options?: { wasPinned?: boolean }
+  ) => unknown;
+  showAttachmentNotAvailableModal: (
+    type: AttachmentNotAvailableModalType
+  ) => void;
   toast?: AnyToast;
   megaphone?: AnyActionableMegaphone;
   centerToast?: boolean;
@@ -40,6 +47,7 @@ export function renderToast({
   openFileInFolder,
   onShowDebugLog,
   onUndoArchive,
+  showAttachmentNotAvailableModal,
   OS,
   toast,
 }: PropsType): JSX.Element | null {
@@ -81,6 +89,16 @@ export function renderToast({
     return (
       <Toast onClose={hideToast}>
         {i18n('icu:GroupV2--join--already-awaiting-approval')}
+      </Toast>
+    );
+  }
+
+  if (toastType === ToastType.AttachmentDownloadStillInProgress) {
+    return (
+      <Toast onClose={hideToast}>
+        {i18n('icu:attachmentStillDownloading', {
+          count: toast.parameters.count,
+        })}
       </Toast>
     );
   }
@@ -166,7 +184,9 @@ export function renderToast({
         toastAction={{
           label: i18n('icu:conversationArchivedUndo'),
           onClick: () => {
-            onUndoArchive(String(toast.parameters.conversationId));
+            onUndoArchive(String(toast.parameters.conversationId), {
+              wasPinned: toast.parameters.wasPinned,
+            });
           },
         }}
       >
@@ -280,6 +300,34 @@ export function renderToast({
     );
   }
 
+  if (toastType === ToastType.FailedToSendWithEndorsements) {
+    return (
+      <Toast
+        onClose={hideToast}
+        toastAction={{
+          label: i18n('icu:Toast__ActionLabel--SubmitLog'),
+          onClick: onShowDebugLog,
+        }}
+      >
+        {i18n('icu:Toast--FailedToSendWithEndorsements')}
+      </Toast>
+    );
+  }
+
+  if (toastType === ToastType.FailedToImportBackup) {
+    return (
+      <Toast
+        onClose={hideToast}
+        toastAction={{
+          label: i18n('icu:Toast__ActionLabel--SubmitLog'),
+          onClick: onShowDebugLog,
+        }}
+      >
+        {i18n('icu:Toast--FailedToImportBackup')}
+      </Toast>
+    );
+  }
+
   if (toastType === ToastType.FileSaved) {
     return (
       <Toast
@@ -291,7 +339,9 @@ export function renderToast({
           },
         }}
       >
-        {i18n('icu:attachmentSaved')}
+        {i18n('icu:attachmentSavedPlural', {
+          count: toast.parameters.countOfFiles ?? 1,
+        })}
       </Toast>
     );
   }
@@ -330,7 +380,7 @@ export function renderToast({
         onClose={hideToast}
         style={{ maxWidth: '500px' }}
         toastAction={{
-          label: i18n('icu:decryptionErrorToastAction'),
+          label: i18n('icu:Toast__ActionLabel--SubmitLog'),
           onClick: onShowDebugLog,
         }}
       >
@@ -362,8 +412,39 @@ export function renderToast({
     return <Toast onClose={hideToast}>{i18n('icu:maximumAttachments')}</Toast>;
   }
 
+  if (toastType === ToastType.MediaNoLongerAvailable) {
+    return (
+      <Toast
+        onClose={hideToast}
+        toastAction={{
+          label: i18n('icu:attachmentNoLongerAvailable__learnMore'),
+          onClick: () =>
+            showAttachmentNotAvailableModal(
+              AttachmentNotAvailableModalType.VisualMedia
+            ),
+        }}
+      >
+        {i18n('icu:mediaNotAvailable')}
+      </Toast>
+    );
+  }
+
   if (toastType === ToastType.MessageBodyTooLong) {
     return <Toast onClose={hideToast}>{i18n('icu:messageBodyTooLong')}</Toast>;
+  }
+
+  if (toastType === ToastType.MessageLoop) {
+    return (
+      <Toast
+        onClose={hideToast}
+        toastAction={{
+          label: i18n('icu:Toast__ActionLabel--SubmitLog'),
+          onClick: onShowDebugLog,
+        }}
+      >
+        {i18n('icu:messageLoop')}
+      </Toast>
+    );
   }
 
   if (toastType === ToastType.OriginalMessageNotFound) {

@@ -6,7 +6,7 @@ import type { ReadonlyDeep } from 'type-fest';
 import type { ExplodePromiseResultType } from '../../util/explodePromise';
 import type {
   GroupV2PendingMemberType,
-  MessageAttributesType,
+  ReadonlyMessageAttributesType,
 } from '../../model-types.d';
 import type {
   MessageChangedActionType,
@@ -34,7 +34,10 @@ import {
   MESSAGE_EXPIRED,
   actions as conversationsActions,
 } from './conversations';
-import { isDownloaded } from '../../types/Attachment';
+import {
+  isDownloaded,
+  isPermanentlyUndownloadable,
+} from '../../types/Attachment';
 import type { ButtonVariant } from '../../components/Button';
 import type { MessageRequestState } from '../../components/conversation/MessageRequestActionsConfirmation';
 import type { MessageForwardDraft } from '../../types/ForwardDraft';
@@ -48,11 +51,14 @@ import { ForwardMessagesModalType } from '../../components/ForwardMessagesModal'
 import type { CallLinkType } from '../../types/CallLink';
 import type { LocalizerType } from '../../types/I18N';
 import { linkCallRoute } from '../../util/signalRoutes';
+import type { StartCallData } from '../../components/ConfirmLeaveCallModal';
+import { getMessageById } from '../../messages/getMessageById';
+import type { AttachmentNotAvailableModalType } from '../../components/AttachmentNotAvailableModal';
 
 // State
 
 export type EditHistoryMessagesType = ReadonlyDeep<
-  Array<MessageAttributesType>
+  Array<ReadonlyMessageAttributesType>
 >;
 export type EditNicknameAndNoteModalPropsType = ReadonlyDeep<{
   conversationId: string;
@@ -91,8 +97,11 @@ type MigrateToGV2PropsType = ReadonlyDeep<{
 export type GlobalModalsStateType = ReadonlyDeep<{
   addUserToAnotherGroupModalContactId?: string;
   aboutContactModalContactId?: string;
+  attachmentNotAvailableModalType: AttachmentNotAvailableModalType | undefined;
   callLinkAddNameModalRoomId: string | null;
   callLinkEditModalRoomId: string | null;
+  callLinkPendingParticipantContactId: string | undefined;
+  confirmLeaveCallModalState: StartCallData | null;
   contactModalState?: ContactModalStateType;
   deleteMessagesProps?: DeleteMessagesPropsType;
   editHistoryMessages?: EditHistoryMessagesType;
@@ -100,7 +109,7 @@ export type GlobalModalsStateType = ReadonlyDeep<{
   errorModalProps?: {
     buttonVariant?: ButtonVariant;
     description?: string;
-    title?: string;
+    title?: string | null;
   };
   forwardMessagesProps?: ForwardMessagesPropsType;
   gv2MigrationProps?: MigrateToGV2PropsType;
@@ -123,6 +132,10 @@ export type GlobalModalsStateType = ReadonlyDeep<{
 
 // Actions
 
+const SHOW_ATTACHMENT_NOT_AVAILABLE_MODAL =
+  'globalModals/SHOW_ATTACHMENT_NOT_AVAILABLE_MODAL';
+const HIDE_ATTACHMENT_NOT_AVAILABLE_MODAL =
+  'globalModals/HIDE_ATTACHMENT_NOT_AVAILABLE_MODAL';
 const HIDE_CONTACT_MODAL = 'globalModals/HIDE_CONTACT_MODAL';
 const SHOW_CONTACT_MODAL = 'globalModals/SHOW_CONTACT_MODAL';
 const HIDE_WHATS_NEW_MODAL = 'globalModals/HIDE_WHATS_NEW_MODAL_MODAL';
@@ -147,6 +160,8 @@ const TOGGLE_ADD_USER_TO_ANOTHER_GROUP_MODAL =
 const TOGGLE_CALL_LINK_ADD_NAME_MODAL =
   'globalModals/TOGGLE_CALL_LINK_ADD_NAME_MODAL';
 const TOGGLE_CALL_LINK_EDIT_MODAL = 'globalModals/TOGGLE_CALL_LINK_EDIT_MODAL';
+const TOGGLE_CALL_LINK_PENDING_PARTICIPANT_MODAL =
+  'globalModals/TOGGLE_CALL_LINK_PENDING_PARTICIPANT_MODAL';
 const TOGGLE_ABOUT_MODAL = 'globalModals/TOGGLE_ABOUT_MODAL';
 const TOGGLE_SIGNAL_CONNECTIONS_MODAL =
   'globalModals/TOGGLE_SIGNAL_CONNECTIONS_MODAL';
@@ -168,6 +183,8 @@ const TOGGLE_CONFIRMATION_MODAL = 'globalModals/TOGGLE_CONFIRMATION_MODAL';
 const SHOW_EDIT_HISTORY_MODAL = 'globalModals/SHOW_EDIT_HISTORY_MODAL';
 const CLOSE_EDIT_HISTORY_MODAL = 'globalModals/CLOSE_EDIT_HISTORY_MODAL';
 const TOGGLE_USERNAME_ONBOARDING = 'globalModals/TOGGLE_USERNAME_ONBOARDING';
+const TOGGLE_CONFIRM_LEAVE_CALL_MODAL =
+  'globalModals/TOGGLE_CONFIRM_LEAVE_CALL_MODAL';
 
 export type ContactModalStateType = ReadonlyDeep<{
   contactId: string;
@@ -184,6 +201,15 @@ export type UserNotFoundModalStateType = ReadonlyDeep<
       username: string;
     }
 >;
+
+type HideAttachmentNotAvailableModalActionType = ReadonlyDeep<{
+  type: typeof HIDE_ATTACHMENT_NOT_AVAILABLE_MODAL;
+}>;
+
+type ShowAttachmentNotAvailableModalActionType = ReadonlyDeep<{
+  type: typeof SHOW_ATTACHMENT_NOT_AVAILABLE_MODAL;
+  payload: AttachmentNotAvailableModalType;
+}>;
 
 type HideContactModalActionType = ReadonlyDeep<{
   type: typeof HIDE_CONTACT_MODAL;
@@ -221,6 +247,11 @@ type ToggleForwardMessagesModalActionType = ReadonlyDeep<{
   payload: ForwardMessagesPropsType | undefined;
 }>;
 
+export type ToggleConfirmLeaveCallModalActionType = ReadonlyDeep<{
+  type: typeof TOGGLE_CONFIRM_LEAVE_CALL_MODAL;
+  payload: StartCallData | null;
+}>;
+
 type ToggleNotePreviewModalActionType = ReadonlyDeep<{
   type: typeof TOGGLE_NOTE_PREVIEW_MODAL;
   payload: NotePreviewModalPropsType | null;
@@ -255,6 +286,11 @@ type ToggleCallLinkAddNameModalActionType = ReadonlyDeep<{
 type ToggleCallLinkEditModalActionType = ReadonlyDeep<{
   type: typeof TOGGLE_CALL_LINK_EDIT_MODAL;
   payload: string | null;
+}>;
+
+type ToggleCallLinkPendingParticipantModalActionType = ReadonlyDeep<{
+  type: typeof TOGGLE_CALL_LINK_PENDING_PARTICIPANT_MODAL;
+  payload: string | undefined;
 }>;
 
 type ToggleAboutContactModalActionType = ReadonlyDeep<{
@@ -321,7 +357,7 @@ export type ShowErrorModalActionType = ReadonlyDeep<{
   payload: {
     buttonVariant?: ButtonVariant;
     description?: string;
-    title?: string;
+    title?: string | null;
   };
 }>;
 
@@ -360,6 +396,7 @@ export type GlobalModalsActionType = ReadonlyDeep<
   | CloseGV2MigrationDialogActionType
   | CloseShortcutGuideModalActionType
   | CloseStickerPackPreviewActionType
+  | HideAttachmentNotAvailableModalActionType
   | HideContactModalActionType
   | HideSendAnywayDialogActiontype
   | HideStoriesSettingsActionType
@@ -368,6 +405,7 @@ export type GlobalModalsActionType = ReadonlyDeep<
   | MessageChangedActionType
   | MessageDeletedActionType
   | MessageExpiredActionType
+  | ShowAttachmentNotAvailableModalActionType
   | ShowContactModalActionType
   | ShowEditHistoryModalActionType
   | ShowErrorModalActionType
@@ -384,7 +422,9 @@ export type GlobalModalsActionType = ReadonlyDeep<
   | ToggleAddUserToAnotherGroupModalActionType
   | ToggleCallLinkAddNameModalActionType
   | ToggleCallLinkEditModalActionType
+  | ToggleCallLinkPendingParticipantModalActionType
   | ToggleConfirmationModalActionType
+  | ToggleConfirmLeaveCallModalActionType
   | ToggleDeleteMessagesModalActionType
   | ToggleForwardMessagesModalActionType
   | ToggleNotePreviewModalActionType
@@ -403,11 +443,13 @@ export const actions = {
   closeGV2MigrationDialog,
   closeShortcutGuideModal,
   closeStickerPackPreview,
+  hideAttachmentNotAvailableModal,
   hideBlockingSafetyNumberChangeDialog,
   hideContactModal,
   hideStoriesSettings,
   hideUserNotFoundModal,
   hideWhatsNewModal,
+  showAttachmentNotAvailableModal,
   showBlockingSafetyNumberChangeDialog,
   showContactModal,
   showEditHistoryModal,
@@ -425,7 +467,9 @@ export const actions = {
   toggleAddUserToAnotherGroupModal,
   toggleCallLinkAddNameModal,
   toggleCallLinkEditModal,
+  toggleCallLinkPendingParticipantModal,
   toggleConfirmationModal,
+  toggleConfirmLeaveCallModal,
   toggleDeleteMessagesModal,
   toggleForwardMessagesModal,
   toggleNotePreviewModal,
@@ -439,6 +483,21 @@ export const actions = {
 export const useGlobalModalActions = (): BoundActionCreatorsMapObject<
   typeof actions
 > => useBoundActions(actions);
+
+function hideAttachmentNotAvailableModal(): HideAttachmentNotAvailableModalActionType {
+  return {
+    type: HIDE_ATTACHMENT_NOT_AVAILABLE_MODAL,
+  };
+}
+
+function showAttachmentNotAvailableModal(
+  payload: AttachmentNotAvailableModalType
+): ShowAttachmentNotAvailableModalActionType {
+  return {
+    type: SHOW_ATTACHMENT_NOT_AVAILABLE_MODAL,
+    payload,
+  };
+}
 
 function hideContactModal(): HideContactModalActionType {
   return {
@@ -603,14 +662,21 @@ function toggleForwardMessagesModal(
     if (payload.type === ForwardMessagesModalType.Forward) {
       messageDrafts = await Promise.all(
         payload.messageIds.map(async messageId => {
-          const messageAttributes = await window.MessageCache.resolveAttributes(
-            'toggleForwardMessagesModal',
-            messageId
-          );
+          const message = await getMessageById(messageId);
+          if (!message) {
+            throw new Error(
+              'toggleForwardMessagesModal: failed to find target message'
+            );
+          }
+          const { attachments = [] } = message.attributes;
 
-          const { attachments = [] } = messageAttributes;
-
-          if (!attachments.every(isDownloaded)) {
+          if (
+            !attachments.every(
+              attachment =>
+                isDownloaded(attachment) ||
+                isPermanentlyUndownloadable(attachment)
+            )
+          ) {
             dispatch(
               conversationsActions.kickOffAttachmentDownload({ messageId })
             );
@@ -620,9 +686,14 @@ function toggleForwardMessagesModal(
           const messagePropsSelector = getMessagePropsSelector(state);
           const conversationSelector = getConversationSelector(state);
 
-          const messageProps = messagePropsSelector(messageAttributes);
+          const messageProps = messagePropsSelector(message.attributes);
           const messageDraft = toMessageForwardDraft(
-            messageProps,
+            {
+              ...messageProps,
+              attachments: attachments.filter(
+                attachment => !isPermanentlyUndownloadable(attachment)
+              ),
+            },
             conversationSelector
           );
 
@@ -682,6 +753,15 @@ function showShareCallLinkViaSignal(
   };
 }
 
+export function toggleConfirmLeaveCallModal(
+  payload: StartCallData | null
+): ToggleConfirmLeaveCallModalActionType {
+  return {
+    type: TOGGLE_CONFIRM_LEAVE_CALL_MODAL,
+    payload,
+  };
+}
+
 function toggleNotePreviewModal(
   payload: NotePreviewModalPropsType | null
 ): ToggleNotePreviewModalActionType {
@@ -734,6 +814,15 @@ function toggleCallLinkEditModal(
   return {
     type: TOGGLE_CALL_LINK_EDIT_MODAL,
     payload: roomId,
+  };
+}
+
+function toggleCallLinkPendingParticipantModal(
+  contactId?: string
+): ToggleCallLinkPendingParticipantModalActionType {
+  return {
+    type: TOGGLE_CALL_LINK_PENDING_PARTICIPANT_MODAL,
+    payload: contactId,
   };
 }
 
@@ -882,7 +971,7 @@ function showShortcutGuideModal(): ShowShortcutGuideModalActionType {
 }
 
 function copyOverMessageAttributesIntoEditHistory(
-  messageAttributes: ReadonlyDeep<MessageAttributesType>
+  messageAttributes: ReadonlyDeep<ReadonlyMessageAttributesType>
 ): EditHistoryMessagesType | undefined {
   if (!messageAttributes.editHistory) {
     return;
@@ -905,12 +994,14 @@ function showEditHistoryModal(
   messageId: string
 ): ThunkAction<void, RootStateType, unknown, ShowEditHistoryModalActionType> {
   return async dispatch => {
-    const messageAttributes = await window.MessageCache.resolveAttributes(
-      'showEditHistoryModal',
-      messageId
+    const message = await getMessageById(messageId);
+    if (!message) {
+      throw new Error('showEditHistoryModal: failed to find target message');
+    }
+
+    const nextEditHistoryMessages = copyOverMessageAttributesIntoEditHistory(
+      message.attributes
     );
-    const nextEditHistoryMessages =
-      copyOverMessageAttributesIntoEditHistory(messageAttributes);
 
     if (!nextEditHistoryMessages) {
       log.warn('showEditHistoryModal: no edit history for message');
@@ -934,7 +1025,7 @@ function closeEditHistoryModal(): CloseEditHistoryModalActionType {
 
 function copyOverMessageAttributesIntoForwardMessages(
   messageDrafts: ReadonlyArray<MessageForwardDraft>,
-  attributes: ReadonlyDeep<MessageAttributesType>
+  attributes: ReadonlyDeep<ReadonlyMessageAttributesType>
 ): ReadonlyArray<MessageForwardDraft> {
   return messageDrafts.map(messageDraft => {
     if (messageDraft.originalMessageId !== attributes.id) {
@@ -951,9 +1042,12 @@ function copyOverMessageAttributesIntoForwardMessages(
 
 export function getEmptyState(): GlobalModalsStateType {
   return {
+    attachmentNotAvailableModalType: undefined,
     hasConfirmationModal: false,
     callLinkAddNameModalRoomId: null,
     callLinkEditModalRoomId: null,
+    callLinkPendingParticipantContactId: undefined,
+    confirmLeaveCallModalState: null,
     editNicknameAndNoteModalProps: null,
     isProfileEditorVisible: false,
     isShortcutGuideModalVisible: false,
@@ -976,6 +1070,13 @@ export function reducer(
     return {
       ...state,
       aboutContactModalContactId: action.payload,
+    };
+  }
+
+  if (action.type === TOGGLE_CONFIRM_LEAVE_CALL_MODAL) {
+    return {
+      ...state,
+      confirmLeaveCallModalState: action.payload,
     };
   }
 
@@ -1031,6 +1132,20 @@ export function reducer(
     };
   }
 
+  if (action.type === HIDE_ATTACHMENT_NOT_AVAILABLE_MODAL) {
+    return {
+      ...state,
+      attachmentNotAvailableModalType: undefined,
+    };
+  }
+
+  if (action.type === SHOW_ATTACHMENT_NOT_AVAILABLE_MODAL) {
+    return {
+      ...state,
+      attachmentNotAvailableModalType: action.payload,
+    };
+  }
+
   if (action.type === SHOW_CONTACT_MODAL) {
     const ourId = window.ConversationController.getOurConversationIdOrThrow();
     if (action.payload.contactId === ourId) {
@@ -1078,6 +1193,13 @@ export function reducer(
     return {
       ...state,
       callLinkEditModalRoomId: action.payload,
+    };
+  }
+
+  if (action.type === TOGGLE_CALL_LINK_PENDING_PARTICIPANT_MODAL) {
+    return {
+      ...state,
+      callLinkPendingParticipantContactId: action.payload,
     };
   }
 

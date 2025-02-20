@@ -14,6 +14,8 @@ import {
   groupInvitesRoute,
   linkCallRoute,
 } from '../util/signalRoutes';
+import type { Backups } from '../protobuf';
+import type { LinkPreviewType } from './message/LinkPreviews';
 
 export type LinkPreviewImage = AttachmentWithHydratedData;
 
@@ -46,7 +48,20 @@ export type AddLinkPreviewOptionsType = Readonly<{
   disableFetch?: boolean;
 }>;
 
-const linkify = LinkifyIt();
+const linkify = new LinkifyIt();
+
+export function isValidLink(maybeUrl: string | undefined): boolean {
+  if (maybeUrl == null) {
+    return false;
+  }
+
+  try {
+    const url = new URL(maybeUrl);
+    return url.protocol === 'https:';
+  } catch (_error) {
+    return false;
+  }
+}
 
 export function shouldPreviewHref(href: string): boolean {
   const url = maybeParseUrl(href);
@@ -56,6 +71,29 @@ export function shouldPreviewHref(href: string): boolean {
       !isDomainExcluded(url) &&
       !isLinkSneaky(href)
   );
+}
+
+export function isValidLinkPreview(
+  urlsInBody: Array<string>,
+  preview: LinkPreviewType | Backups.ILinkPreview,
+  { isStory }: { isStory: boolean }
+): boolean {
+  const { url } = preview;
+  if (!url) {
+    return false;
+  }
+
+  if (!shouldPreviewHref(url)) {
+    return false;
+  }
+
+  // Story link previews don't have to correspond to links in the
+  // message body.
+  if (!urlsInBody.includes(url) && !isStory) {
+    return false;
+  }
+
+  return true;
 }
 
 const EXCLUDED_DOMAINS = [
@@ -144,6 +182,14 @@ export function findLinks(text: string, caretLocation?: number): Array<string> {
       return null;
     })
   );
+}
+
+export function getSafeDomain(href: string): string | undefined {
+  try {
+    return getDomain(href);
+  } catch {
+    return undefined;
+  }
 }
 
 export function getDomain(href: string): string {

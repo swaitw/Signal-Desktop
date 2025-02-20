@@ -8,7 +8,6 @@ import { chmod, realpath, writeFile } from 'fs-extra';
 import { randomBytes } from 'crypto';
 import { createParser } from 'dashdash';
 
-import normalizePath from 'normalize-path';
 import fastGlob from 'fast-glob';
 import PQueue from 'p-queue';
 import { get, pick, isNumber, isBoolean, some, debounce, noop } from 'lodash';
@@ -16,7 +15,6 @@ import {
   app,
   BrowserWindow,
   clipboard,
-  desktopCapturer,
   dialog,
   ipcMain as ipc,
   Menu,
@@ -117,11 +115,14 @@ import { load as loadLocale } from './locale';
 import type { LoggerType } from '../ts/types/Logging';
 import { HourCyclePreference } from '../ts/types/I18N';
 import { ScreenShareStatus } from '../ts/types/Calling';
-import { DBVersionFromFutureError } from '../ts/sql/migrations';
 import type { ParsedSignalRoute } from '../ts/util/signalRoutes';
 import { parseSignalRoute } from '../ts/util/signalRoutes';
 import * as dns from '../ts/util/dns';
 import { ZoomFactorService } from '../ts/services/ZoomFactorService';
+import { SafeStorageBackendChangeError } from '../ts/types/SafeStorageBackendChangeError';
+import { LINUX_PASSWORD_STORE_FLAGS } from '../ts/util/linuxPasswordStoreFlags';
+import { getOwn } from '../ts/util/getOwn';
+import { safeParseLoose, safeParseUnknown } from '../ts/util/schemas';
 
 const animationSettings = systemPreferences.getAnimationSettings();
 
@@ -197,7 +198,7 @@ const cliOptions = cliParser.parse(process.argv);
 const defaultWebPrefs = {
   devTools:
     process.argv.some(arg => arg === '--enable-dev-tools') ||
-    getEnvironment() !== Environment.Production ||
+    getEnvironment() !== Environment.PackagedApp ||
     !isProduction(app.getVersion()),
   spellcheck: false,
   // https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5
@@ -362,13 +363,18 @@ async function getResolvedThemeSetting(
   return ThemeType[theme];
 }
 
+type GetBackgroundColorOptionsType = GetThemeSettingOptionsType &
+  Readonly<{
+    signalColors?: boolean;
+  }>;
+
 async function getBackgroundColor(
-  options?: GetThemeSettingOptionsType
+  options?: GetBackgroundColorOptionsType
 ): Promise<string> {
   const theme = await getResolvedThemeSetting(options);
 
   if (theme === 'light') {
-    return '#3a76f0';
+    return options?.signalColors ? '#3a76f0' : '#ffffff';
   }
 
   if (theme === 'dark') {
@@ -396,14 +402,14 @@ async function getLocaleOverrideSetting(): Promise<string | null> {
 
 const zoomFactorService = new ZoomFactorService({
   async getZoomFactorSetting() {
-    const item = await sql.sqlCall('getItemById', 'zoomFactor');
+    const item = await sql.sqlRead('getItemById', 'zoomFactor');
     if (typeof item?.value !== 'number') {
       return null;
     }
     return item.value;
   },
   async setZoomFactorSetting(zoomFactor) {
-    await sql.sqlCall('createOrUpdateItem', {
+    await sql.sqlWrite('createOrUpdateItem', {
       id: 'zoomFactor',
       value: zoomFactor,
     });
@@ -430,7 +436,8 @@ export const windowConfigSchema = z.object({
 type WindowConfigType = z.infer<typeof windowConfigSchema>;
 
 let windowConfig: WindowConfigType | undefined;
-const windowConfigParsed = windowConfigSchema.safeParse(
+const windowConfigParsed = safeParseUnknown(
+  windowConfigSchema,
   windowFromEphemeral || windowFromUserConfig
 );
 if (windowConfigParsed.success) {
@@ -692,7 +699,7 @@ async function createWindow() {
     titleBarStyle: mainTitleBarStyle,
     backgroundColor: isTestEnvironment(getEnvironment())
       ? '#ffffff' // Tests should always be rendered on a white background
-      : await getBackgroundColor(),
+      : await getBackgroundColor({ signalColors: true }),
     webPreferences: {
       ...defaultWebPrefs,
       nodeIntegration: false,
@@ -702,7 +709,7 @@ async function createWindow() {
       preload: join(
         __dirname,
         usePreloadBundle
-          ? '../preload.bundle.js'
+          ? '../preload.wrapper.js'
           : '../ts/windows/main/preload.js'
       ),
       spellcheck: await getSpellCheckSetting(),
@@ -728,25 +735,32 @@ async function createWindow() {
     (await systemTraySettingCache.get()) ===
       SystemTraySetting.MinimizeToAndStartInSystemTray;
 
-  const visibleOnAnyScreen = some(screen.getAllDisplays(), display => {
-    if (
-      isNumber(windowOptions.x) &&
-      isNumber(windowOptions.y) &&
-      isNumber(windowOptions.width) &&
-      isNumber(windowOptions.height)
-    ) {
-      return isVisible(windowOptions as BoundsType, get(display, 'bounds'));
-    }
-
-    getLogger().error(
-      "visibleOnAnyScreen: windowOptions didn't have valid bounds fields"
+  const haveFullWindowsBounds =
+    isNumber(windowOptions.x) &&
+    isNumber(windowOptions.y) &&
+    isNumber(windowOptions.width) &&
+    isNumber(windowOptions.height);
+  if (haveFullWindowsBounds) {
+    getLogger().info(
+      `visibleOnAnyScreen(window): x=${windowOptions.x}, y=${windowOptions.y}, ` +
+        `width=${windowOptions.width}, height=${windowOptions.height}`
     );
-    return false;
-  });
-  if (!visibleOnAnyScreen) {
-    getLogger().info('Location reset needed');
-    delete windowOptions.x;
-    delete windowOptions.y;
+
+    const visibleOnAnyScreen = some(screen.getAllDisplays(), display => {
+      const displayBounds = get(display, 'bounds');
+      getLogger().info(
+        `visibleOnAnyScreen(display #${display.id}): ` +
+          `x=${displayBounds.x}, y=${displayBounds.y}, ` +
+          `width=${displayBounds.width}, height=${displayBounds.height}`
+      );
+
+      return isVisible(windowOptions as BoundsType, displayBounds);
+    });
+    if (!visibleOnAnyScreen) {
+      getLogger().info('visibleOnAnyScreen: Location reset needed');
+      delete windowOptions.x;
+      delete windowOptions.y;
+    }
   }
 
   getLogger().info(
@@ -829,6 +843,8 @@ async function createWindow() {
 
   mainWindow.on('resize', captureWindowStats);
   mainWindow.on('move', captureWindowStats);
+  mainWindow.on('maximize', captureWindowStats);
+  mainWindow.on('unmaximize', captureWindowStats);
 
   if (!ciMode && config.get<boolean>('openDevTools')) {
     // Open the DevTools.
@@ -839,12 +855,6 @@ async function createWindow() {
 
   // App dock icon bounce
   bounce.init(mainWindow);
-
-  mainWindow.on('hide', () => {
-    if (mainWindow && !windowState.shouldQuit()) {
-      mainWindow.webContents.send('set-media-playback-disabled', true);
-    }
-  });
 
   // Emitted when the window is about to be closed.
   // Note: We do most of our shutdown logic here because all windows are closed by
@@ -869,6 +879,9 @@ async function createWindow() {
 
     // Prevent the shutdown
     e.preventDefault();
+
+    // Disable media playback
+    mainWindow.webContents.send('set-media-playback-disabled', true);
 
     // In certain cases such as during an active call, we ask the user to confirm close
     // which includes shutdown, clicking X on MacOS or closing to tray.
@@ -937,6 +950,9 @@ async function createWindow() {
       }
       return;
     }
+
+    // Persist pending window settings to ephemeralConfig
+    debouncedSaveStats.flush();
 
     windowState.markRequestedShutdown();
     await requestShutdown();
@@ -1050,6 +1066,14 @@ ipc.on('art-creator:onUploadProgress', () => {
 
 ipc.on('show-window', () => {
   showWindow();
+});
+
+ipc.on('start-tracking-query-stats', () => {
+  sql.startTrackingQueryStats();
+});
+
+ipc.on('stop-tracking-query-stats', (_event, options) => {
+  sql.stopTrackingQueryStats(options);
 });
 
 ipc.on('title-bar-double-click', () => {
@@ -1216,7 +1240,7 @@ function setupAsStandalone() {
 }
 
 let screenShareWindow: BrowserWindow | undefined;
-async function showScreenShareWindow(sourceName: string) {
+async function showScreenShareWindow(sourceName: string | undefined) {
   if (screenShareWindow) {
     screenShareWindow.showInactive();
     return;
@@ -1347,7 +1371,7 @@ async function showAbout() {
     title: getResolvedMessagesLocale().i18n('icu:aboutSignalDesktop'),
     titleBarStyle: nonMainTitleBarStyle,
     autoHideMenuBar: true,
-    backgroundColor: await getBackgroundColor(),
+    backgroundColor: await getBackgroundColor({ signalColors: true }),
     show: false,
     webPreferences: {
       ...defaultWebPrefs,
@@ -1433,8 +1457,8 @@ async function showSettingsWindow() {
 
 async function getIsLinked() {
   try {
-    const number = await sql.sqlCall('getItemById', 'number_id');
-    const password = await sql.sqlCall('getItemById', 'password');
+    const number = await sql.sqlRead('getItemById', 'number_id');
+    const password = await sql.sqlRead('getItemById', 'password');
     return Boolean(number && password);
   } catch (e) {
     return false;
@@ -1600,7 +1624,7 @@ const runSQLCorruptionHandler = async () => {
       `Restarting the application immediately. Error: ${error.message}`
   );
 
-  await onDatabaseError(Errors.toLogFormat(error));
+  await onDatabaseError(error);
 };
 
 const runSQLReadonlyHandler = async () => {
@@ -1627,12 +1651,35 @@ function generateSQLKey(): string {
 
 function getSQLKey(): string {
   let update = false;
+  const isLinux = OS.isLinux();
   const legacyKeyValue = userConfig.get('key');
   const modernKeyValue = userConfig.get('encryptedKey');
+  const previousBackend = isLinux
+    ? userConfig.get('safeStorageBackend')
+    : undefined;
 
+  const safeStorageBackend: string | undefined = isLinux
+    ? safeStorage.getSelectedStorageBackend()
+    : undefined;
   const isEncryptionAvailable =
     safeStorage.isEncryptionAvailable() &&
-    (!OS.isLinux() || safeStorage.getSelectedStorageBackend() !== 'basic_text');
+    (!isLinux || safeStorageBackend !== 'basic_text');
+
+  // On Linux the backend can change based on desktop environment and command line flags.
+  // If the backend changes we won't be able to decrypt the key.
+  if (
+    isLinux &&
+    typeof previousBackend === 'string' &&
+    previousBackend !== safeStorageBackend
+  ) {
+    console.error(
+      `Detected change in safeStorage backend, can't decrypt DB key (previous: ${previousBackend}, current: ${safeStorageBackend})`
+    );
+    throw new SafeStorageBackendChangeError({
+      currentBackend: String(safeStorageBackend),
+      previousBackend,
+    });
+  }
 
   let key: string;
   if (typeof modernKeyValue === 'string') {
@@ -1647,6 +1694,13 @@ function getSQLKey(): string {
     if (legacyKeyValue != null) {
       getLogger().info('getSQLKey: removing legacy key');
       userConfig.set('key', undefined);
+    }
+
+    if (isLinux && previousBackend == null) {
+      getLogger().info(
+        `getSQLKey: saving safeStorageBackend: ${safeStorageBackend}`
+      );
+      userConfig.set('safeStorageBackend', safeStorageBackend);
     }
   } else if (typeof legacyKeyValue === 'string') {
     key = legacyKeyValue;
@@ -1671,6 +1725,13 @@ function getSQLKey(): string {
     const encrypted = safeStorage.encryptString(key).toString('hex');
     userConfig.set('encryptedKey', encrypted);
     userConfig.set('key', undefined);
+
+    if (isLinux && safeStorageBackend) {
+      getLogger().info(
+        `getSQLKey: saving safeStorageBackend: ${safeStorageBackend}`
+      );
+      userConfig.set('safeStorageBackend', safeStorageBackend);
+    }
   } else {
     getLogger().info('getSQLKey: updating plaintext key in the config');
     userConfig.set('key', key);
@@ -1684,14 +1745,40 @@ async function initializeSQL(
 ): Promise<{ ok: true; error: undefined } | { ok: false; error: Error }> {
   sqlInitTimeStart = Date.now();
 
+  let key: string;
+  try {
+    key = getSQLKey();
+  } catch (error) {
+    try {
+      // Initialize with *some* key to setup paths
+      await sql.initialize({
+        appVersion: app.getVersion(),
+        configDir: userDataPath,
+        key: 'abcd',
+        logger: getLogger(),
+      });
+    } catch {
+      // Do nothing, we fail right below anyway.
+    }
+
+    if (error instanceof Error) {
+      return { ok: false, error };
+    }
+
+    return {
+      ok: false,
+      error: new Error(`initializeSQL: Caught a non-error '${error}'`),
+    };
+  }
+
   try {
     // This should be the first awaited call in this function, otherwise
-    // `sql.sqlCall` will throw an uninitialized error instead of waiting for
+    // `sql.sqlRead` will throw an uninitialized error instead of waiting for
     // init to finish.
     await sql.initialize({
       appVersion: app.getVersion(),
       configDir: userDataPath,
-      key: getSQLKey(),
+      key,
       logger: getLogger(),
     });
   } catch (error: unknown) {
@@ -1707,6 +1794,8 @@ async function initializeSQL(
     sqlInitTimeEnd = Date.now();
   }
 
+  sql.startTrackingQueryStats();
+
   // Only if we've initialized things successfully do we set up the corruption handler
   drop(runSQLCorruptionHandler());
   drop(runSQLReadonlyHandler());
@@ -1714,7 +1803,7 @@ async function initializeSQL(
   return { ok: true, error: undefined };
 }
 
-const onDatabaseError = async (error: string) => {
+const onDatabaseError = async (error: Error) => {
   // Prevent window from re-opening
   ready = false;
 
@@ -1732,11 +1821,29 @@ const onDatabaseError = async (error: string) => {
   const copyErrorAndQuitButtonIndex = 0;
   const SIGNAL_SUPPORT_LINK = 'https://support.signal.org/error';
 
-  if (error.includes(DBVersionFromFutureError.name)) {
+  // Note that this error is thrown by the worker process and thus instanceof
+  // check won't work.
+  if (error.name === 'DBVersionFromFutureError') {
     // If the DB version is too new, the user likely opened an older version of Signal,
     // and they would almost never want to delete their data as a result, so we don't show
     // that option
     messageDetail = i18n('icu:databaseError__startOldVersion');
+  } else if (error instanceof SafeStorageBackendChangeError) {
+    const { currentBackend, previousBackend } = error;
+    const previousBackendFlag = getOwn(
+      LINUX_PASSWORD_STORE_FLAGS,
+      previousBackend
+    );
+    messageDetail = previousBackendFlag
+      ? i18n('icu:databaseError__safeStorageBackendChangeWithPreviousFlag', {
+          currentBackend,
+          previousBackend,
+          previousBackendFlag,
+        })
+      : i18n('icu:databaseError__safeStorageBackendChange', {
+          currentBackend,
+          previousBackend,
+        });
   } else {
     // Otherwise, this is some other kind of DB error, let's give them the option to
     // delete.
@@ -1761,7 +1868,11 @@ const onDatabaseError = async (error: string) => {
   });
 
   if (buttonIndex === copyErrorAndQuitButtonIndex) {
-    clipboard.writeText(`Database startup error:\n\n${redactAll(error)}`);
+    clipboard.writeText(
+      `Database startup error:\n\n${redactAll(Errors.toLogFormat(error))}\n\n` +
+        `App Version: ${app.getVersion()}\n` +
+        `OS: ${os.platform()}`
+    );
   } else if (
     typeof deleteAllDataButtonIndex === 'number' &&
     buttonIndex === deleteAllDataButtonIndex
@@ -1800,10 +1911,6 @@ const onDatabaseError = async (error: string) => {
 let sqlInitPromise:
   | Promise<{ ok: true; error: undefined } | { ok: false; error: Error }>
   | undefined;
-
-ipc.on('database-error', (_event: Electron.Event, error: string) => {
-  drop(onDatabaseError(error));
-});
 
 ipc.on('database-readonly', (_event: Electron.Event, error: string) => {
   // Just let global_errors.ts handle it
@@ -1865,6 +1972,7 @@ electronProtocol.registerSchemesAsPrivileged([
   {
     scheme: 'attachment',
     privileges: {
+      standard: true,
       supportFetchAPI: true,
       stream: true,
     },
@@ -1887,7 +1995,7 @@ app.on('ready', async () => {
     realpath(app.getAppPath()),
   ]);
 
-  updateDefaultSession(session.defaultSession);
+  updateDefaultSession(session.defaultSession, getLogger);
 
   if (getEnvironment() !== Environment.Test) {
     installFileHandler({
@@ -1899,7 +2007,9 @@ app.on('ready', async () => {
   }
 
   installWebHandler({
-    enableHttp: Boolean(process.env.SIGNAL_ENABLE_HTTP),
+    enableHttp:
+      Boolean(process.env.SIGNAL_ENABLE_HTTP) ||
+      Boolean(process.env.REACT_DEVTOOLS),
     session: session.defaultSession,
   });
 
@@ -2012,6 +2122,8 @@ app.on('ready', async () => {
     innerLogger.info('Processed count:', processedCount);
     innerLogger.info('Messages per second:', messagesPerSec);
 
+    sql.stopTrackingQueryStats({ epochName: 'App Load' });
+
     event.sender.send('ci:event', 'app-loaded', {
       loadTime,
       sqlInitTime,
@@ -2065,7 +2177,10 @@ app.on('ready', async () => {
   // This color is to be used only in loading screen and in this case we should
   // never wait for the database to be initialized. Thus the theme setting
   // lookup should be done only in ephemeral config.
-  const backgroundColor = await getBackgroundColor({ ephemeralOnly: true });
+  const backgroundColor = await getBackgroundColor({
+    ephemeralOnly: true,
+    signalColors: true,
+  });
 
   drop(
     // eslint-disable-next-line more/no-then
@@ -2122,6 +2237,15 @@ app.on('ready', async () => {
     );
   }
 
+  try {
+    await attachments.deleteStaleDownloads(userDataPath);
+  } catch (err) {
+    logger.error(
+      'main/ready: Error deleting stale downloads:',
+      Errors.toLogFormat(err)
+    );
+  }
+
   // Initialize IPC channels before creating the window
 
   attachmentChannel.initialize({
@@ -2145,7 +2269,7 @@ app.on('ready', async () => {
   if (sqlError) {
     getLogger().error('sql.initialize was unsuccessful; returning early');
 
-    await onDatabaseError(Errors.toLogFormat(sqlError));
+    await onDatabaseError(sqlError);
 
     return;
   }
@@ -2154,10 +2278,10 @@ app.on('ready', async () => {
 
   try {
     const IDB_KEY = 'indexeddb-delete-needed';
-    const item = await sql.sqlCall('getItemById', IDB_KEY);
+    const item = await sql.sqlRead('getItemById', IDB_KEY);
     if (item && item.value) {
-      await sql.sqlCall('removeIndexedDBFiles');
-      await sql.sqlCall('removeItemById', IDB_KEY);
+      await sql.sqlWrite('removeIndexedDBFiles');
+      await sql.sqlWrite('removeItemById', IDB_KEY);
     }
   } catch (err) {
     getLogger().error(
@@ -2322,12 +2446,15 @@ async function requestShutdown() {
     //   exits the app before we've set everything up in preload() (so the browser isn't
     //   yet listening for these events), or if there are a whole lot of stacked-up tasks.
     // Note: two minutes is also our timeout for SQL tasks in data.js in the browser.
-    timeout = setTimeout(() => {
-      getLogger().error(
-        'requestShutdown: Response never received; forcing shutdown.'
-      );
-      resolveFn();
-    }, 2 * 60 * 1000);
+    timeout = setTimeout(
+      () => {
+        getLogger().error(
+          'requestShutdown: Response never received; forcing shutdown.'
+        );
+        resolveFn();
+      },
+      2 * 60 * 1000
+    );
   });
 
   try {
@@ -2467,6 +2594,9 @@ ipc.on('restart', () => {
   app.quit();
 });
 ipc.on('shutdown', () => {
+  if (process.env.GENERATE_PRELOAD_CACHE) {
+    windowState.markReadyForShutdown();
+  }
   app.quit();
 });
 
@@ -2509,9 +2639,12 @@ ipc.on('stop-screen-share', () => {
   }
 });
 
-ipc.on('show-screen-share', (_event: Electron.Event, sourceName: string) => {
-  drop(showScreenShareWindow(sourceName));
-});
+ipc.on(
+  'show-screen-share',
+  (_event: Electron.Event, sourceName: string | undefined) => {
+    drop(showScreenShareWindow(sourceName));
+  }
+);
 
 ipc.on('update-tray-icon', (_event: Electron.Event, unreadCount: number) => {
   if (systemTrayService) {
@@ -2527,6 +2660,7 @@ ipc.on(
   async (_event: Electron.Event, logText: string) => {
     const { filePath } = await dialog.showSaveDialog({
       defaultPath: 'debuglog.txt',
+      showsTagField: false,
     });
     if (filePath) {
       await writeFile(filePath, logText);
@@ -2577,7 +2711,7 @@ ipc.on('delete-all-data', () => {
 ipc.on('get-config', async event => {
   const theme = await getResolvedThemeSetting();
 
-  const directoryConfig = directoryConfigSchema.safeParse({
+  const directoryConfig = safeParseLoose(directoryConfigSchema, {
     directoryUrl: config.get<string | null>('directoryUrl') || undefined,
     directoryMRENCLAVE:
       config.get<string | null>('directoryMRENCLAVE') || undefined,
@@ -2590,7 +2724,7 @@ ipc.on('get-config', async event => {
     );
   }
 
-  const parsed = rendererConfigSchema.safeParse({
+  const parsed = safeParseLoose(rendererConfigSchema, {
     name: packageJson.productName,
     availableLocales: getResolvedMessagesLocale().availableLocales,
     resolvedTranslationsLocale: getResolvedMessagesLocale().name,
@@ -2612,14 +2746,15 @@ ipc.on('get-config', async event => {
     certificateAuthority: config.get<string>('certificateAuthority'),
     environment:
       !isTestEnvironment(getEnvironment()) && ciMode
-        ? Environment.Production
+        ? Environment.PackagedApp
         : getEnvironment(),
     isMockTestEnvironment: Boolean(process.env.MOCK_TEST),
     ciMode,
+    ciForceUnprocessed: config.get<boolean>('ciForceUnprocessed'),
+    devTools: defaultWebPrefs.devTools,
     // Should be already computed and cached at this point
     dnsFallback: await getDNSFallback(),
     disableIPv6: DISABLE_IPV6,
-    ciBackupPath: config.get<string | null>('ciBackupPath') || undefined,
     nodeVersion: process.versions.node,
     hostname: os.hostname(),
     osRelease: os.release(),
@@ -2698,6 +2833,8 @@ ipc.handle(
       app.getVersion(),
       os.version(),
       userAgent,
+      process.arch,
+      app.runningUnderARM64Translation,
       OS.getLinuxName()
     );
   }
@@ -2766,14 +2903,13 @@ function handleSignalRoute(route: ParsedSignalRoute) {
       value: route.args.encryptedUsername,
     });
   } else if (route.key === 'showConversation') {
-    mainWindow.webContents.send('show-conversation-via-notification', {
-      conversationId: route.args.conversationId,
-      messageId: route.args.messageId,
-      storyId: route.args.storyId,
-    });
+    mainWindow.webContents.send(
+      'show-conversation-via-token',
+      route.args.token
+    );
   } else if (route.key === 'startCallLobby') {
     mainWindow.webContents.send('start-call-lobby', {
-      conversationId: route.args.conversationId,
+      token: route.args.token,
     });
   } else if (route.key === 'linkCall') {
     mainWindow.webContents.send('start-call-link', {
@@ -2781,8 +2917,8 @@ function handleSignalRoute(route: ParsedSignalRoute) {
     });
   } else if (route.key === 'showWindow') {
     mainWindow.webContents.send('show-window');
-  } else if (route.key === 'setIsPresenting') {
-    mainWindow.webContents.send('set-is-presenting');
+  } else if (route.key === 'cancelPresenting') {
+    mainWindow.webContents.send('cancel-presenting');
   } else if (route.key === 'captcha') {
     challengeHandler.handleCaptcha(route.args.captchaId);
     // Show window after handling captcha
@@ -2813,8 +2949,7 @@ async function ensureFilePermissions(onlyFiles?: Array<string>) {
 
   const start = Date.now();
   const userDataPath = await realpath(app.getPath('userData'));
-  // fast-glob uses `/` for all platforms
-  const userDataGlob = normalizePath(join(userDataPath, '**', '*'));
+  const userDataGlob = attachments.prepareGlobPattern(userDataPath);
 
   // Determine files to touch
   const files = onlyFiles
@@ -2890,9 +3025,11 @@ ipc.handle('show-save-dialog', async (_event, { defaultPath }) => {
 
   const { canceled, filePath: selectedFilePath } = await dialog.showSaveDialog(
     mainWindow,
-    { defaultPath }
+    {
+      defaultPath,
+      showsTagField: false,
+    }
   );
-
   if (canceled || selectedFilePath == null) {
     return { canceled: true };
   }
@@ -2907,16 +3044,31 @@ ipc.handle('show-save-dialog', async (_event, { defaultPath }) => {
   return { canceled: false, filePath: finalFilePath };
 });
 
-ipc.handle(
-  'getScreenCaptureSources',
-  async (_event, types: Array<'screen' | 'window'> = ['screen', 'window']) => {
-    return desktopCapturer.getSources({
-      fetchWindowIcons: true,
-      thumbnailSize: { height: 102, width: 184 },
-      types,
-    });
+ipc.handle('show-save-multi-dialog', async _event => {
+  if (!mainWindow) {
+    getLogger().warn('show-save-multi-dialog: no main window');
+
+    return { canceled: true };
   }
-);
+  const { canceled, filePaths: selectedDirPaths } = await dialog.showOpenDialog(
+    mainWindow,
+    {
+      defaultPath: app.getPath('downloads'),
+      properties: ['openDirectory', 'createDirectory'],
+    }
+  );
+  if (canceled || selectedDirPaths.length === 0) {
+    return { canceled: true };
+  }
+
+  if (selectedDirPaths.length > 1) {
+    getLogger().warn('show-save-multi-dialog: multiple directories selected');
+
+    return { canceled: true };
+  }
+
+  return { canceled: false, dirPath: selectedDirPaths[0] };
+});
 
 ipc.handle('executeMenuRole', async ({ sender }, untypedRole) => {
   const role = untypedRole as MenuItemConstructorOptions['role'];

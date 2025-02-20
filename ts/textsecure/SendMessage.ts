@@ -15,6 +15,7 @@ import {
   SenderKeyDistributionMessage,
 } from '@signalapp/libsignal-client';
 
+import { DataWriter } from '../sql/Client';
 import type { ConversationModel } from '../models/conversations';
 import { GLOBAL_ZONE } from '../SignalProtocolStore';
 import { assertDev, strictAssert } from '../util/assert';
@@ -35,8 +36,6 @@ import {
 import type {
   ChallengeType,
   GetGroupLogOptionsType,
-  GetProfileOptionsType,
-  GetProfileUnauthOptionsType,
   GroupCredentialsType,
   GroupLogResponseType,
   ProxiedRequestOptionsType,
@@ -94,19 +93,30 @@ import {
   AdhocCallStatus,
   DirectCallStatus,
   GroupCallStatus,
+  CallMode,
 } from '../types/CallDisposition';
 import {
   getBytesForPeerId,
+  getCallIdForProto,
   getProtoForCallHistory,
 } from '../util/callDisposition';
-import { CallMode } from '../types/Calling';
 import { MAX_MESSAGE_COUNT } from '../util/deleteForMe.types';
+import type { GroupSendToken } from '../types/GroupSendEndorsements';
+
+export type SendIdentifierData =
+  | {
+      accessKey: string;
+      senderCertificate: SerializedCertificateType | null;
+      groupSendToken: null;
+    }
+  | {
+      accessKey: null;
+      senderCertificate: SerializedCertificateType | null;
+      groupSendToken: GroupSendToken;
+    };
 
 export type SendMetadataType = {
-  [serviceId: ServiceIdString]: {
-    accessKey: string;
-    senderCertificate?: SerializedCertificateType;
-  };
+  [serviceId: ServiceIdString]: SendIdentifierData;
 };
 
 export type SendOptionsType = {
@@ -187,6 +197,7 @@ export type MessageOptionsType = {
   bodyRanges?: ReadonlyArray<RawBodyRange>;
   contact?: ReadonlyArray<EmbeddedContactWithUploadedAvatar>;
   expireTimer?: DurationInSeconds;
+  expireTimerVersion: number | undefined;
   flags?: number;
   group?: {
     id: string;
@@ -237,6 +248,8 @@ class Message {
 
   expireTimer?: DurationInSeconds;
 
+  expireTimerVersion?: number;
+
   flags?: number;
 
   group?: {
@@ -276,6 +289,7 @@ class Message {
     this.bodyRanges = options.bodyRanges;
     this.contact = options.contact;
     this.expireTimer = options.expireTimer;
+    this.expireTimerVersion = options.expireTimerVersion;
     this.flags = options.flags;
     this.group = options.group;
     this.groupV2 = options.groupV2;
@@ -400,7 +414,7 @@ class Message {
       proto.reaction.emoji = this.reaction.emoji || null;
       proto.reaction.remove = this.reaction.remove || false;
       proto.reaction.targetAuthorAci = this.reaction.targetAuthorAci || null;
-      proto.reaction.targetTimestamp =
+      proto.reaction.targetSentTimestamp =
         this.reaction.targetTimestamp === undefined
           ? null
           : Long.fromNumber(this.reaction.targetTimestamp);
@@ -408,7 +422,7 @@ class Message {
 
     if (Array.isArray(this.preview)) {
       proto.preview = this.preview.map(preview => {
-        const item = new Proto.DataMessage.Preview();
+        const item = new Proto.Preview();
         item.title = preview.title;
         item.url = preview.url;
         item.description = preview.description || null;
@@ -430,7 +444,7 @@ class Message {
               prefix: contact.name.prefix,
               suffix: contact.name.suffix,
               middleName: contact.name.middleName,
-              displayName: contact.name.displayName,
+              nickname: contact.name.nickname,
             };
             contactProto.name = new Proto.DataMessage.Contact.Name(nameProto);
           }
@@ -490,7 +504,8 @@ class Message {
     }
 
     if (this.quote) {
-      const { BodyRange: ProtoBodyRange, Quote } = Proto.DataMessage;
+      const ProtoBodyRange = Proto.BodyRange;
+      const { Quote } = Proto.DataMessage;
 
       proto.quote = new Quote();
       const { quote } = proto;
@@ -532,6 +547,9 @@ class Message {
     }
     if (this.expireTimer) {
       proto.expireTimer = this.expireTimer;
+    }
+    if (this.expireTimerVersion) {
+      proto.expireTimerVersion = this.expireTimerVersion;
     }
     if (this.profileKey) {
       proto.profileKey = this.profileKey;
@@ -929,6 +947,7 @@ export default class MessageSender {
       contact,
       deletedForEveryoneTimestamp,
       expireTimer,
+      expireTimerVersion: undefined,
       flags,
       groupCallUpdate,
       groupV2,
@@ -1162,6 +1181,7 @@ export default class MessageSender {
     contentHint,
     deletedForEveryoneTimestamp,
     expireTimer,
+    expireTimerVersion,
     groupId,
     serviceId,
     messageText,
@@ -1184,6 +1204,7 @@ export default class MessageSender {
     contentHint: number;
     deletedForEveryoneTimestamp: number | undefined;
     expireTimer: DurationInSeconds | undefined;
+    expireTimerVersion: number | undefined;
     groupId: string | undefined;
     serviceId: ServiceIdString;
     messageText: string | undefined;
@@ -1208,6 +1229,7 @@ export default class MessageSender {
         contact,
         deletedForEveryoneTimestamp,
         expireTimer,
+        expireTimerVersion,
         preview,
         profileKey,
         quote,
@@ -1235,7 +1257,7 @@ export default class MessageSender {
     encodedDataMessage,
     encodedEditMessage,
     timestamp,
-    destination,
+    destinationE164,
     destinationServiceId,
     expirationStartTimestamp,
     conversationIdsSentTo = [],
@@ -1249,7 +1271,7 @@ export default class MessageSender {
     encodedDataMessage?: Uint8Array;
     encodedEditMessage?: Uint8Array;
     timestamp: number;
-    destination: string | undefined;
+    destinationE164: string | undefined;
     destinationServiceId: ServiceIdString | undefined;
     expirationStartTimestamp: number | null;
     conversationIdsSentTo?: Iterable<string>;
@@ -1272,8 +1294,8 @@ export default class MessageSender {
       const dataMessage = Proto.DataMessage.decode(encodedDataMessage);
       sentMessage.message = dataMessage;
     }
-    if (destination) {
-      sentMessage.destination = destination;
+    if (destinationE164) {
+      sentMessage.destinationE164 = destinationE164;
     }
     if (destinationServiceId) {
       sentMessage.destinationServiceId = destinationServiceId;
@@ -1304,10 +1326,6 @@ export default class MessageSender {
             new Proto.SyncMessage.Sent.UnidentifiedDeliveryStatus();
           const conv = window.ConversationController.get(conversationId);
           if (conv) {
-            const e164 = conv.get('e164');
-            if (e164) {
-              status.destination = e164;
-            }
             const serviceId = conv.getServiceId();
             if (serviceId) {
               status.destinationServiceId = serviceId;
@@ -1600,7 +1618,7 @@ export default class MessageSender {
       type: Proto.SyncMessage.CallLogEvent.Type.CLEAR,
       timestamp: Long.fromNumber(latestCall.timestamp),
       peerId: getBytesForPeerId(latestCall),
-      callId: Long.fromString(latestCall.callId),
+      callId: getCallIdForProto(latestCall),
     });
 
     const syncMessage = MessageSender.createSyncMessage();
@@ -1742,7 +1760,7 @@ export default class MessageSender {
         `syncViewOnceOpen: ${viewOnceOpens.length} opens provided. Can only handle one.`
       );
     }
-    const { senderE164, senderAci, timestamp } = viewOnceOpens[0];
+    const { senderAci, timestamp } = viewOnceOpens[0];
 
     if (!senderAci) {
       throw new Error('syncViewOnceOpen: Missing senderAci');
@@ -1753,9 +1771,6 @@ export default class MessageSender {
     const syncMessage = MessageSender.createSyncMessage();
 
     const viewOnceOpen = new Proto.SyncMessage.ViewOnceOpen();
-    if (senderE164 !== undefined) {
-      viewOnceOpen.sender = senderE164;
-    }
     viewOnceOpen.senderAci = senderAci;
     viewOnceOpen.timestamp = Long.fromNumber(timestamp);
     syncMessage.viewOnceOpen = viewOnceOpen;
@@ -1775,9 +1790,42 @@ export default class MessageSender {
     });
   }
 
+  static getBlockSync(
+    options: Readonly<{
+      e164s: Array<string>;
+      acis: Array<string>;
+      groupIds: Array<Uint8Array>;
+    }>
+  ): SingleProtoJobData {
+    const myAci = window.textsecure.storage.user.getCheckedAci();
+
+    const syncMessage = MessageSender.createSyncMessage();
+
+    const blocked = new Proto.SyncMessage.Blocked();
+    blocked.numbers = options.e164s;
+    blocked.acis = options.acis;
+    blocked.groupIds = options.groupIds;
+    syncMessage.blocked = blocked;
+
+    const contentMessage = new Proto.Content();
+    contentMessage.syncMessage = syncMessage;
+
+    const { ContentHint } = Proto.UnidentifiedSenderMessage.Message;
+
+    return {
+      contentHint: ContentHint.RESENDABLE,
+      serviceId: myAci,
+      isSyncMessage: true,
+      protoBase64: Bytes.toBase64(
+        Proto.Content.encode(contentMessage).finish()
+      ),
+      type: 'blockSync',
+      urgent: false,
+    };
+  }
+
   static getMessageRequestResponseSync(
     options: Readonly<{
-      threadE164?: string;
       threadAci?: AciString;
       groupId?: Uint8Array;
       type: number;
@@ -1788,9 +1836,6 @@ export default class MessageSender {
     const syncMessage = MessageSender.createSyncMessage();
 
     const response = new Proto.SyncMessage.MessageRequestResponse();
-    if (options.threadE164 !== undefined) {
-      response.threadE164 = options.threadE164;
-    }
     if (options.threadAci !== undefined) {
       response.threadAci = options.threadAci;
     }
@@ -1874,9 +1919,6 @@ export default class MessageSender {
 
     const verified = new Proto.Verified();
     verified.state = state;
-    if (destinationE164) {
-      verified.destination = destinationE164;
-    }
     if (destinationAci) {
       verified.destinationAci = destinationAci;
     }
@@ -1907,7 +1949,7 @@ export default class MessageSender {
 
   async sendCallingMessage(
     serviceId: ServiceIdString,
-    callingMessage: Readonly<Proto.ICallingMessage>,
+    callingMessage: Readonly<Proto.ICallMessage>,
     timestamp: number,
     urgent: boolean,
     options?: Readonly<SendOptionsType>
@@ -1915,7 +1957,7 @@ export default class MessageSender {
     const recipients = [serviceId];
 
     const contentMessage = new Proto.Content();
-    contentMessage.callingMessage = callingMessage;
+    contentMessage.callMessage = callingMessage;
 
     const conversation = window.ConversationController.get(serviceId);
 
@@ -1946,7 +1988,7 @@ export default class MessageSender {
       options?: Readonly<SendOptionsType>;
     }>
   ): Promise<CallbackResultType> {
-    return this.sendReceiptMessage({
+    return this.#sendReceiptMessage({
       ...options,
       type: Proto.ReceiptMessage.Type.DELIVERY,
     });
@@ -1960,7 +2002,7 @@ export default class MessageSender {
       options?: Readonly<SendOptionsType>;
     }>
   ): Promise<CallbackResultType> {
-    return this.sendReceiptMessage({
+    return this.#sendReceiptMessage({
       ...options,
       type: Proto.ReceiptMessage.Type.READ,
     });
@@ -1974,13 +2016,13 @@ export default class MessageSender {
       options?: Readonly<SendOptionsType>;
     }>
   ): Promise<CallbackResultType> {
-    return this.sendReceiptMessage({
+    return this.#sendReceiptMessage({
       ...options,
       type: Proto.ReceiptMessage.Type.VIEWED,
     });
   }
 
-  private async sendReceiptMessage({
+  async #sendReceiptMessage({
     senderAci,
     timestamps,
     type,
@@ -2091,7 +2133,7 @@ export default class MessageSender {
       }
 
       if (initialSavePromise === undefined) {
-        initialSavePromise = window.Signal.Data.insertSentProto(
+        initialSavePromise = DataWriter.insertSentProto(
           {
             contentHint,
             proto,
@@ -2107,7 +2149,7 @@ export default class MessageSender {
         await initialSavePromise;
       } else {
         const id = await initialSavePromise;
-        await window.Signal.Data.insertProtoRecipients({
+        await DataWriter.insertProtoRecipients({
           id,
           recipientServiceId,
           deviceIds,
@@ -2307,17 +2349,6 @@ export default class MessageSender {
 
   // Note: instead of updating these functions, or adding new ones, remove these and go
   //   directly to window.textsecure.messaging.server.<function>
-
-  async getProfile(
-    serviceId: ServiceIdString,
-    options: GetProfileOptionsType | GetProfileUnauthOptionsType
-  ): ReturnType<WebAPIType['getProfile']> {
-    if (options.accessKey !== undefined) {
-      return this.server.getProfileUnauth(serviceId, options);
-    }
-
-    return this.server.getProfile(serviceId, options);
-  }
 
   async getAvatar(path: string): Promise<ReturnType<WebAPIType['getAvatar']>> {
     return this.server.getAvatar(path);

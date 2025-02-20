@@ -24,7 +24,6 @@ export {
   SignedPreKeyIdType,
   SignedPreKeyType,
   UnprocessedType,
-  UnprocessedUpdateType,
 } from '../sql/Interface';
 
 export type StorageServiceCallOptionsType = {
@@ -87,19 +86,20 @@ export type ProcessedEnvelope = Readonly<{
 
   // Mostly from Proto.Envelope except for null/undefined
   type: Proto.Envelope.Type;
-  source?: string;
-  sourceServiceId?: ServiceIdString;
-  sourceDevice?: number;
+  source: string | undefined;
+  sourceServiceId: ServiceIdString | undefined;
+  sourceDevice: number | Undefined;
   destinationServiceId: ServiceIdString;
-  updatedPni?: PniString;
+  updatedPni: PniString | undefined;
   timestamp: number;
-  content?: Uint8Array;
+  content: Uint8Array;
   serverGuid: string;
   serverTimestamp: number;
-  groupId?: string;
-  urgent?: boolean;
-  story?: boolean;
-  reportingToken?: Uint8Array;
+  groupId: string | undefined;
+  urgent: boolean;
+  story: boolean;
+  reportingToken: Uint8Array | undefined;
+  groupId: string | undefined;
 }>;
 
 export type ProcessedAttachment = {
@@ -119,6 +119,9 @@ export type ProcessedAttachment = {
   cdnNumber?: number;
   textAttachment?: Omit<TextAttachmentType, 'preview'>;
   backupLocator?: AttachmentType['backupLocator'];
+  downloadPath?: string;
+  incrementalMac?: string;
+  chunkSize?: number;
 };
 
 export type ProcessedGroupV2Context = {
@@ -203,6 +206,7 @@ export type ProcessedDataMessage = {
   groupV2?: ProcessedGroupV2Context;
   flags: number;
   expireTimer: DurationInSeconds;
+  expireTimerVersion: number;
   profileKey?: string;
   timestamp: number;
   payment?: AnyPaymentEvent;

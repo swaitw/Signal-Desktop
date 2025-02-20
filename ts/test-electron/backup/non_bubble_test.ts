@@ -9,20 +9,22 @@ import type { ConversationModel } from '../../models/conversations';
 import { getRandomBytes } from '../../Crypto';
 import * as Bytes from '../../Bytes';
 import { SignalService as Proto, Backups } from '../../protobuf';
-import Data from '../../sql/Client';
+import { DataWriter } from '../../sql/Client';
+import { APPLICATION_OCTET_STREAM } from '../../types/MIME';
 import { generateAci } from '../../types/ServiceId';
 import { PaymentEventKind } from '../../types/Payment';
 import { ContactFormType } from '../../types/EmbeddedContact';
+import { MessageRequestResponseEvent } from '../../types/MessageRequestResponseEvent';
 import { DurationInSeconds } from '../../util/durations';
 import { ReadStatus } from '../../messages/MessageReadStatus';
 import { SeenStatus } from '../../MessageSeenStatus';
-import { loadCallsHistory } from '../../services/callHistoryLoader';
 import {
   setupBasics,
   asymmetricRoundtripHarness,
   symmetricRoundtripHarness,
   OUR_ACI,
 } from './helpers';
+import { loadAllAndReinitializeRedux } from '../../services/allLoaders';
 
 const CONTACT_A = generateAci();
 const GROUP_ID = Bytes.toBase64(getRandomBytes(32));
@@ -32,8 +34,8 @@ describe('backup/non-bubble messages', () => {
   let group: ConversationModel;
 
   beforeEach(async () => {
-    await Data._removeAllMessages();
-    await Data._removeAllConversations();
+    await DataWriter._removeAllMessages();
+    await DataWriter._removeAllConversations();
     window.storage.reset();
 
     await setupBasics();
@@ -41,7 +43,7 @@ describe('backup/non-bubble messages', () => {
     contactA = await window.ConversationController.getOrCreateAndWait(
       CONTACT_A,
       'private',
-      { systemGivenName: 'CONTACT_A' }
+      { systemGivenName: 'CONTACT_A', active_at: 1 }
     );
 
     group = await window.ConversationController.getOrCreateAndWait(
@@ -51,10 +53,11 @@ describe('backup/non-bubble messages', () => {
         groupVersion: 2,
         masterKey: Bytes.toBase64(getRandomBytes(32)),
         name: 'Rock Enthusiasts',
+        active_at: 1,
       }
     );
 
-    await loadCallsHistory();
+    await loadAllAndReinitializeRedux();
   });
 
   it('roundtrips END_SESSION simple update', async () => {
@@ -64,15 +67,15 @@ describe('backup/non-bubble messages', () => {
         id: generateGuid(),
         type: 'incoming',
         received_at: 1,
-        received_at_ms: 1,
         sent_at: 1,
         timestamp: 1,
         sourceServiceId: CONTACT_A,
         sourceDevice: 1,
-        readStatus: ReadStatus.Unread,
-        seenStatus: SeenStatus.Unseen,
-        unidentifiedDeliveryReceived: true,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         flags: Proto.DataMessage.Flags.END_SESSION,
+        attachments: [],
+        contact: [],
       },
     ]);
   });
@@ -86,6 +89,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: OUR_ACI,
       },
     ]);
@@ -100,6 +105,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
       },
     ]);
@@ -115,6 +122,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
       },
     ]);
@@ -131,6 +140,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
       },
     ]);
@@ -147,6 +158,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
       },
     ]);
@@ -161,6 +174,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
       },
     ]);
@@ -175,6 +190,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
       },
     ]);
@@ -189,6 +206,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
       },
     ]);
@@ -327,7 +346,6 @@ describe('backup/non-bubble messages', () => {
             fromId: contactA.id,
             targetTimestamp: 1,
             timestamp: 1,
-            receivedAtDate: 1,
           },
         ],
       },
@@ -355,6 +373,11 @@ describe('backup/non-bubble messages', () => {
           packId: Bytes.toHex(getRandomBytes(16)),
           stickerId: 1,
           packKey: Bytes.toBase64(getRandomBytes(32)),
+          data: {
+            contentType: APPLICATION_OCTET_STREAM,
+            error: true,
+            size: 0,
+          },
         },
         reactions: [
           {
@@ -362,7 +385,6 @@ describe('backup/non-bubble messages', () => {
             fromId: contactA.id,
             targetTimestamp: 1,
             timestamp: 1,
-            receivedAtDate: 1,
           },
         ],
       },
@@ -385,6 +407,7 @@ describe('backup/non-bubble messages', () => {
         seenStatus: SeenStatus.Unseen,
         unidentifiedDeliveryReceived: true,
         isErased: true,
+        deletedForEveryone: true,
       },
     ]);
   });
@@ -398,6 +421,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         flags: Proto.DataMessage.Flags.EXPIRATION_TIMER_UPDATE,
         sourceServiceId: CONTACT_A,
         sourceDevice: 1,
@@ -418,6 +443,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         changedId: contactA.id,
         sourceServiceId: CONTACT_A,
         profileChange: {
@@ -438,6 +465,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
         titleTransition: {
           renderInfo: {
@@ -459,6 +488,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         conversationMerge: {
           renderInfo: {
             type: 'private',
@@ -478,6 +509,8 @@ describe('backup/non-bubble messages', () => {
         received_at: 1,
         sent_at: 1,
         timestamp: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         sourceServiceId: CONTACT_A,
         phoneNumberDiscovery: {
           e164: '+12125551234',
@@ -493,14 +526,12 @@ describe('backup/non-bubble messages', () => {
         id: generateGuid(),
         type: 'incoming',
         received_at: 1,
-        received_at_ms: 1,
         sourceServiceId: CONTACT_A,
         sourceDevice: 1,
         sent_at: 1,
         timestamp: 1,
-        readStatus: ReadStatus.Unread,
-        seenStatus: SeenStatus.Unseen,
-        unidentifiedDeliveryReceived: true,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
         supportedVersionAtReceive: 5,
         requiredProtocolVersion: 6,
       },
@@ -536,10 +567,30 @@ describe('backup/non-bubble messages', () => {
           },
           received_at: 1,
           sent_at: 1,
+          readStatus: ReadStatus.Read,
+          seenStatus: SeenStatus.Seen,
           sourceServiceId: CONTACT_A,
           timestamp: 1,
         },
       ]
     );
+  });
+
+  it('roundtrips spam report message', async () => {
+    await symmetricRoundtripHarness([
+      {
+        conversationId: contactA.id,
+        id: generateGuid(),
+        type: 'message-request-response-event',
+        received_at: 1,
+        sourceServiceId: OUR_ACI,
+        sourceDevice: 1,
+        readStatus: ReadStatus.Read,
+        seenStatus: SeenStatus.Seen,
+        sent_at: 1,
+        timestamp: 1,
+        messageRequestResponseEvent: MessageRequestResponseEvent.SPAM,
+      },
+    ]);
   });
 });

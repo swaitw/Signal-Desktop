@@ -15,7 +15,7 @@ import { SignalService as Proto } from '../protobuf';
 import { strictAssert } from '../util/assert';
 import { dropNull } from '../util/dropNull';
 
-type ProvisionDecryptResult = {
+export type ProvisionDecryptResult = Readonly<{
   aciKeyPair: KeyPairType;
   pniKeyPair?: KeyPairType;
   number?: string;
@@ -26,14 +26,15 @@ type ProvisionDecryptResult = {
   readReceipts?: boolean;
   profileKey?: Uint8Array;
   masterKey?: Uint8Array;
-};
+  accountEntropyPool: string | undefined;
+  mediaRootBackupKey: Uint8Array | undefined;
+  ephemeralBackupKey: Uint8Array | undefined;
+}>;
 
 class ProvisioningCipherInner {
   keyPair?: KeyPairType;
 
-  async decrypt(
-    provisionEnvelope: Proto.ProvisionEnvelope
-  ): Promise<ProvisionDecryptResult> {
+  decrypt(provisionEnvelope: Proto.ProvisionEnvelope): ProvisionDecryptResult {
     strictAssert(
       provisionEnvelope.publicKey,
       'Missing publicKey in ProvisionEnvelope'
@@ -77,7 +78,7 @@ class ProvisioningCipherInner {
     strictAssert(aci, 'Missing aci in provisioning message');
     strictAssert(pni, 'Missing pni in provisioning message');
 
-    const ret: ProvisionDecryptResult = {
+    return {
       aciKeyPair,
       pniKeyPair,
       number: dropNull(provisionMessage.number),
@@ -86,17 +87,23 @@ class ProvisioningCipherInner {
       provisioningCode: dropNull(provisionMessage.provisioningCode),
       userAgent: dropNull(provisionMessage.userAgent),
       readReceipts: provisionMessage.readReceipts ?? false,
+      profileKey: Bytes.isNotEmpty(provisionMessage.profileKey)
+        ? provisionMessage.profileKey
+        : undefined,
+      masterKey: Bytes.isNotEmpty(provisionMessage.masterKey)
+        ? provisionMessage.masterKey
+        : undefined,
+      ephemeralBackupKey: Bytes.isNotEmpty(provisionMessage.ephemeralBackupKey)
+        ? provisionMessage.ephemeralBackupKey
+        : undefined,
+      mediaRootBackupKey: Bytes.isNotEmpty(provisionMessage.mediaRootBackupKey)
+        ? provisionMessage.mediaRootBackupKey
+        : undefined,
+      accountEntropyPool: provisionMessage.accountEntropyPool || undefined,
     };
-    if (Bytes.isNotEmpty(provisionMessage.profileKey)) {
-      ret.profileKey = provisionMessage.profileKey;
-    }
-    if (Bytes.isNotEmpty(provisionMessage.masterKey)) {
-      ret.masterKey = provisionMessage.masterKey;
-    }
-    return ret;
   }
 
-  async getPublicKey(): Promise<Uint8Array> {
+  getPublicKey(): Uint8Array {
     if (!this.keyPair) {
       this.keyPair = generateKeyPair();
     }
@@ -119,7 +126,7 @@ export default class ProvisioningCipher {
 
   decrypt: (
     provisionEnvelope: Proto.ProvisionEnvelope
-  ) => Promise<ProvisionDecryptResult>;
+  ) => ProvisionDecryptResult;
 
-  getPublicKey: () => Promise<Uint8Array>;
+  getPublicKey: () => Uint8Array;
 }
